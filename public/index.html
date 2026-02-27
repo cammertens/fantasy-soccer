@@ -1429,6 +1429,16 @@ async function enterLeague() {
 // =============================================
 async function loadPlayers() {
   if (!state.league) return;
+  // Use cached players if available
+const cached = localStorage.getItem('fsl_players');
+if (cached) {
+  state.players = JSON.parse(cached);
+  state.teams = JSON.parse(localStorage.getItem('fsl_teams') || '[]');
+  applyDraftPicks();
+  populateCountryFilters();
+  populateManualPlayerSelect();
+  return;
+}
   const { leagueId, season } = state.league.competition;
 
   try {
@@ -1493,6 +1503,9 @@ for (const t of UCL_16) {
 
     state.players = Array.from(playerMap.values());
     console.log('Players loaded:', state.players.length);
+    // Cache players locally so we don't hit API again
+    localStorage.setItem('fsl_players', JSON.stringify(state.players));
+    localStorage.setItem('fsl_teams', JSON.stringify(state.teams));
 
     applyDraftPicks();
     populateCountryFilters();
