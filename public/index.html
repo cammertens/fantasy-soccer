@@ -1462,15 +1462,17 @@ state.teams = UCL_16.map(t => ({
   draftedBy: null
 }));
 
-// Load players from squad rosters for only these 16 teams
-const playerMap = new Map();
-const squadPromises = UCL_16.map(t =>
-  fetch(`${API}/api/football/players/squads?team=${t.id}`)
-    .then(r => r.json())
-    .catch(() => ({ response: [] }))
-);
-
-    const squadResults = await Promise.all(squadPromises);
+const squadResults = [];
+for (const t of UCL_16) {
+  try {
+    const r = await fetch(`${API}/api/football/players/squads?team=${t.id}`);
+    const data = await r.json();
+    squadResults.push(data);
+  } catch(e) {
+    squadResults.push({ response: [] });
+  }
+  await new Promise(resolve => setTimeout(resolve, 200));
+}
     squadResults.forEach(data => {
       (data.response || []).forEach(squad => {
         (squad.players || []).forEach(p => {
