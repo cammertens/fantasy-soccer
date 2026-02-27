@@ -933,7 +933,7 @@
 <body>
 
 <nav>
-  <div class="nav-logo">⚽ Fantasy Soccer</div>
+  <div class="nav-logo" onclick="goHome()" style="cursor:pointer">⚽ Fantasy Soccer</div>
   <div class="nav-tabs">
     <button class="nav-tab hidden" id="tab-home" onclick="showPage('home', this)">Standings</button>
     <button class="nav-tab hidden" id="tab-draft" onclick="showPage('draft', this)">Draft Room</button>
@@ -2164,6 +2164,12 @@ function showMsg(id, msg) {
   el.textContent = msg;
   el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function goHome() {
+  if (!confirm('Go to home screen? You can rejoin this league using your admin or invite link.')) return;
+  localStorage.removeItem('fsl_state');
+  location.reload();
 }
 
 function showPage(name, tabEl) {
