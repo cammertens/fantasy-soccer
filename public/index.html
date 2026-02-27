@@ -1478,7 +1478,7 @@ const squadPromises = UCL_16.map(t =>
             playerMap.set(p.id, {
               id: p.id,
               name: p.name,
-              country: p.nationality ? p.nationality.substring(0,3).toUpperCase() : '???',
+              country: squad.team.code || squad.team.name.substring(0,3).toUpperCase(),
               pos: mapPosition(p.position),
               scores: {},
               draftedBy: null
