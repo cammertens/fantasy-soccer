@@ -1453,7 +1453,7 @@ async function loadPlayers() {
   { id: 530, name: 'Atletico Madrid',   code: 'ATL' },
   { id: 157, name: 'Bayern Munich',     code: 'BAY' },
   { id: 85,  name: 'PSG',              code: 'PAR' },
-  { id: 168, name: 'Bayer Leverkusen', code: 'LEV' },
+  { id: 168, name: 'Bayer Leverkusen', code: 'BAY' },
   { id: 499, name: 'Atalanta',         code: 'ATA' },
   { id: 228, name: 'Sporting CP',      code: 'SPO' },
   { id: 49,  name: 'Chelsea',          code: 'CHE' },
@@ -1486,7 +1486,7 @@ for (const t of UCL_16) {
     console.log('FAILED:', t.name, e.message);
     squadResults.push({ response: [] });
   }
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 2000));
 }
     squadResults.forEach(data => {
       (data.response || []).forEach(squad => {
