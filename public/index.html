@@ -1429,6 +1429,8 @@ async function enterLeague() {
 // =============================================
 async function loadPlayers() {
   if (!state.league) return;
+  if (state.loadingPlayers) return;
+  state.loadingPlayers = true;
   // Use cached players if available
   const cached = localStorage.getItem('fsl_players');
   const cachedTeams = localStorage.getItem('fsl_teams');
@@ -1486,7 +1488,7 @@ for (const t of UCL_16) {
     console.log('FAILED:', t.name, e.message);
     squadResults.push({ response: [] });
   }
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise(resolve => setTimeout(resolve, 500));
 }
     squadResults.forEach(data => {
       (data.response || []).forEach(squad => {
@@ -1510,6 +1512,7 @@ for (const t of UCL_16) {
     // Cache players locally so we don't hit API again
     localStorage.setItem('fsl_players', JSON.stringify(state.players));
     localStorage.setItem('fsl_teams', JSON.stringify(state.teams));
+    state.loadingPlayers = false;
 
     applyDraftPicks();
     populateCountryFilters();
