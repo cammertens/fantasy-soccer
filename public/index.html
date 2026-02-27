@@ -1483,7 +1483,7 @@ for (const t of UCL_16) {
   } catch(e) {
     squadResults.push({ response: [] });
   }
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 500));
 }
     squadResults.forEach(data => {
       (data.response || []).forEach(squad => {
