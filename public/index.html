@@ -1430,15 +1430,16 @@ async function enterLeague() {
 async function loadPlayers() {
   if (!state.league) return;
   // Use cached players if available
-const cached = localStorage.getItem('fsl_players');
-if (cached) {
-  state.players = JSON.parse(cached);
-  state.teams = JSON.parse(localStorage.getItem('fsl_teams') || '[]');
-  applyDraftPicks();
-  populateCountryFilters();
-  populateManualPlayerSelect();
-  return;
-}
+  const cached = localStorage.getItem('fsl_players');
+  const cachedTeams = localStorage.getItem('fsl_teams');
+  if (cached && cachedTeams) {
+    state.players = JSON.parse(cached);
+    state.teams = JSON.parse(cachedTeams);
+    applyDraftPicks();
+    populateCountryFilters();
+    populateManualPlayerSelect();
+    return;
+  }
   const { leagueId, season } = state.league.competition;
 
   try {
