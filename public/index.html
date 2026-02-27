@@ -2169,7 +2169,7 @@ function showMsg(id, msg) {
 function goHome() {
   if (!confirm('Go to home screen? You can rejoin this league using your admin or invite link.')) return;
   localStorage.removeItem('fsl_state');
-  location.reload();
+  window.location.href = window.location.origin;
 }
 
 function showPage(name, tabEl) {
