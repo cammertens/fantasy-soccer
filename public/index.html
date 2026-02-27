@@ -1433,27 +1433,42 @@ async function loadPlayers() {
 
   try {
     // Load teams
-    const teamsRes = await fetch(`${API}/api/football/teams?league=${leagueId}&season=${season}`);
-    const teamsData = await teamsRes.json();
-    const teamList = teamsData.response || [];
+    const UCL_16 = [
+  { id: 40,  name: 'Liverpool',         code: 'LIV' },
+  { id: 42,  name: 'Arsenal',           code: 'ARS' },
+  { id: 50,  name: 'Manchester City',   code: 'MCI' },
+  { id: 529, name: 'Barcelona',         code: 'BAR' },
+  { id: 541, name: 'Real Madrid',       code: 'RMA' },
+  { id: 530, name: 'Atletico Madrid',   code: 'ATM' },
+  { id: 157, name: 'Bayern Munich',     code: 'BAY' },
+  { id: 85,  name: 'PSG',              code: 'PSG' },
+  { id: 168, name: 'Bayer Leverkusen', code: 'LEV' },
+  { id: 499, name: 'Atalanta',         code: 'ATA' },
+  { id: 228, name: 'Sporting CP',      code: 'SPO' },
+  { id: 49,  name: 'Chelsea',          code: 'CHE' },
+  { id: 47,  name: 'Tottenham',        code: 'TOT' },
+  { id: 34,  name: 'Newcastle',        code: 'NEW' },
+  { id: 645, name: 'Galatasaray',      code: 'GAL' },
+  { id: 327, name: 'Bodo/Glimt',       code: 'BOD' },
+];
 
-    state.teams = teamList.map(t => ({
-      id: `team-${t.team.id}`,
-      apiId: t.team.id,
-      name: `${t.team.name} Defense`,
-      country: t.team.code || t.team.country.substring(0,3).toUpperCase(),
-      pos: 'TEAM',
-      scores: {},
-      draftedBy: null
-    }));
+state.teams = UCL_16.map(t => ({
+  id: `team-${t.id}`,
+  apiId: t.id,
+  name: `${t.name} Defense`,
+  country: t.code,
+  pos: 'TEAM',
+  scores: {},
+  draftedBy: null
+}));
 
-    // Load players from squad rosters
-    const playerMap = new Map();
-    const squadPromises = teamList.slice(0, 32).map(t =>
-      fetch(`${API}/api/football/players/squads?team=${t.team.id}`)
-        .then(r => r.json())
-        .catch(() => ({ response: [] }))
-    );
+// Load players from squad rosters for only these 16 teams
+const playerMap = new Map();
+const squadPromises = UCL_16.map(t =>
+  fetch(`${API}/api/football/players/squads?team=${t.id}`)
+    .then(r => r.json())
+    .catch(() => ({ response: [] }))
+);
 
     const squadResults = await Promise.all(squadPromises);
     squadResults.forEach(data => {
