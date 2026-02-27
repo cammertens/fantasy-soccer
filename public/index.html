@@ -977,6 +977,10 @@
           <option value="1|2026">FIFA World Cup 2026</option>
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-label">Your Name (Commissioner)</label>
+        <input class="form-input" id="create-admin-name" placeholder="e.g. Cam" />
+      </div>
       <button class="btn btn-gold" onclick="createLeague()">Create League</button>
       <div class="error-msg" id="create-error"></div>
       <div class="success-msg" id="create-success"></div>
@@ -1252,6 +1256,7 @@ function saveState() {
 async function createLeague() {
   const name = document.getElementById('create-league-name').value.trim();
   const managerCount = parseInt(document.getElementById('create-manager-count').value);
+  const adminName = document.getElementById('create-admin-name').value.trim();
   const competitionVal = document.getElementById('create-competition').value;
   const [leagueId, season] = competitionVal.split('|');
 
@@ -1274,8 +1279,9 @@ async function createLeague() {
     const data = await res.json();
     if (!res.ok) return showError('create-error', data.error);
 
-    state.leagueId = data.leagueId;
+    state.leagueId = String(data.leagueId);
     state.adminToken = data.adminToken;
+    state.managerName = adminName;
     state.isAdmin = true;
     saveState();
 
@@ -1364,7 +1370,6 @@ async function completeJoin() {
 
     state.managerId = data.managerId;
     state.managerName = data.managerName;
-    state.isAdmin = false;
     saveState();
     enterLeague();
   } catch(e) {
