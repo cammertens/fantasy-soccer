@@ -1477,10 +1477,13 @@ const playerMap = new Map();
 const squadResults = [];
 for (const t of UCL_16) {
   try {
+    console.log('Fetching:', t.name, t.id);
     const r = await fetch(`${API}/api/football/players/squads?team=${t.id}`);
     const data = await r.json();
+    console.log('Got:', t.name, (data.response||[]).length > 0 ? 'OK' : 'EMPTY');
     squadResults.push(data);
   } catch(e) {
+    console.log('FAILED:', t.name, e.message);
     squadResults.push({ response: [] });
   }
   await new Promise(resolve => setTimeout(resolve, 500));
