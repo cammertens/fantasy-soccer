@@ -157,17 +157,28 @@ app.post('/api/leagues', async (req, res) => {
     );
     const leagueId = leagueRes.rows[0].id;
 
+    const { adminName } = req.body;
+    const adminManagerId = generateToken();
     const inviteLinks = [];
+
     for (let i = 0; i < managerCount; i++) {
       const token = generateToken();
-      await pool.query(
-        `INSERT INTO league_slots (league_id, slot, token) VALUES ($1, $2, $3)`,
-        [leagueId, i + 1, token]
-      );
-      inviteLinks.push({ slot: i + 1, token });
+      if (i === 0) {
+        await pool.query(
+          `INSERT INTO league_slots (league_id, slot, token, manager_id, manager_name, team_name) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [leagueId, 1, token, adminManagerId, adminName || 'Commissioner', 'My Team']
+        );
+        inviteLinks.push({ slot: 1, token, managerId: adminManagerId, managerName: adminName || 'Commissioner', teamName: 'My Team' });
+      } else {
+        await pool.query(
+          `INSERT INTO league_slots (league_id, slot, token) VALUES ($1, $2, $3)`,
+          [leagueId, i + 1, token]
+        );
+        inviteLinks.push({ slot: i + 1, token });
+      }
     }
 
-    res.json({ leagueId, adminToken, inviteLinks });
+    res.json({ leagueId, adminToken, adminManagerId, inviteLinks });
   } catch(e) {
     console.error(e);
     res.status(500).json({ error: e.message });

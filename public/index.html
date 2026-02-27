@@ -1247,7 +1247,7 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem('fantasyLeagueState', JSON.stringify({
+    localStorage.setItem('fsl_state', JSON.stringify({
     leagueId: state.leagueId,
     adminToken: state.adminToken,
     managerId: state.managerId,
@@ -1280,7 +1280,7 @@ async function createLeague() {
     const res = await fetch(`${API}/api/leagues`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, managerCount, competition })
+      body: JSON.stringify({ name, managerCount, competition, adminName })
     });
     const data = await res.json();
     if (!res.ok) return showError('create-error', data.error);
