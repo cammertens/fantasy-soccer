@@ -12,7 +12,52 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// API Football helper
+// =============================================
+// DATABASE SETUP
+// =============================================
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leagues (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        manager_count INTEGER NOT NULL,
+        competition JSONB NOT NULL,
+        admin_token TEXT NOT NULL,
+        draft_order JSONB DEFAULT '[]',
+        draft_picks JSONB DEFAULT '[]',
+        draft_open BOOLEAN DEFAULT false,
+        draft_complete BOOLEAN DEFAULT false,
+        manual_stats JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS league_slots (
+        id SERIAL PRIMARY KEY,
+        league_id INTEGER REFERENCES leagues(id),
+        slot INTEGER NOT NULL,
+        token TEXT NOT NULL,
+        manager_id TEXT,
+        manager_name TEXT,
+        team_name TEXT
+      );
+    `);
+    console.log('Database initialized');
+  } catch(e) {
+    console.error('DB init error:', e.message);
+  }
+}
+
+// =============================================
+// API FOOTBALL HELPER
+// =============================================
 async function apiFootball(endpoint, params = {}) {
   const response = await axios.get(`${API_BASE}${endpoint}`, {
     headers: { 'x-apisports-key': API_KEY },
@@ -22,332 +67,15 @@ async function apiFootball(endpoint, params = {}) {
 }
 
 // =============================================
-// LEAGUE MANAGEMENT
-// =============================================
-
-// In-memory store (we'll move to a database later)
-let leagues = {};
-let nextLeagueId = 1;
-
-// Create a new league
-app.post('/api/leagues', (req, res) => {
-  const { name, managerCount, competition } = req.body;
-  if (!name || !managerCount || !competition) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-  if (managerCount % 2 !== 0 || managerCount < 8 || managerCount > 14) {
-    return res.status(400).json({ error: 'Manager count must be even, between 8 and 14' });
-  }
-
-  const leagueId = nextLeagueId++;
-  const adminToken = generateToken();
-  const inviteLinks = [];
-
-  for (let i = 0; i < managerCount; i++) {
-    inviteLinks.push({ slot: i + 1, token: generateToken(), managerId: null, managerName: null, teamName: null });
-  }
-
-  leagues[leagueId] = {
-    id: leagueId,
-    name,
-    managerCount,
-    competition,
-    adminToken,
-    inviteLinks,
-    draftOrder: [],
-    draftPicks: [],
-    draftOpen: false,
-    draftComplete: false,
-    rosters: {},
-    manualStats: {},
-    createdAt: new Date().toISOString()
-  };
-
-  res.json({ leagueId, adminToken, inviteLinks: inviteLinks.map(l => ({ slot: l.slot, token: l.token })) });
-});
-
-// Get league (public info)
-app.get('/api/leagues/:id', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  res.json(sanitizeLeague(league));
-});
-
-// Admin: get full league info
-app.get('/api/leagues/:id/admin', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
-  res.json(league);
-});
-
-// Manager joins via invite link
-app.post('/api/leagues/:id/join', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  const { token, managerName, teamName } = req.body;
-  const slot = league.inviteLinks.find(l => l.token === token);
-  if (!slot) return res.status(404).json({ error: 'Invalid invite link' });
-  if (slot.managerId) return res.status(400).json({ error: 'This slot is already taken' });
-
-  slot.managerId = generateToken();
-  slot.managerName = managerName;
-  slot.teamName = teamName;
-
-  res.json({ managerId: slot.managerId, managerName, teamName, slot: slot.slot });
-});
-
-// Admin: set draft order
-app.post('/api/leagues/:id/draft-order', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
-  league.draftOrder = req.body.order;
-  res.json({ success: true });
-});
-
-// Admin: open/close draft
-app.post('/api/leagues/:id/draft-status', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
-  league.draftOpen = req.body.open;
-  res.json({ success: true, draftOpen: league.draftOpen });
-});
-
-// Make a draft pick
-app.post('/api/leagues/:id/pick', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  if (!league.draftOpen) return res.status(400).json({ error: 'Draft is not open' });
-
-  const { managerId, playerId, adminOverride } = req.body;
-  const isAdmin = req.headers['x-admin-token'] === league.adminToken;
-
-  // Figure out whose turn it is
-  const currentPickIndex = league.draftPicks.length;
-  const snakePicks = generateSnakePicks(league.draftOrder, 8);
-  if (currentPickIndex >= snakePicks.length) return res.status(400).json({ error: 'Draft is complete' });
-
-  const currentPick = snakePicks[currentPickIndex];
-
-  // Verify it's this manager's turn (or admin override)
-  if (!isAdmin && currentPick.managerId !== managerId) {
-    return res.status(403).json({ error: 'Not your turn' });
-  }
-
-  // Check player not already drafted
-  const alreadyDrafted = league.draftPicks.find(p => p.playerId === playerId);
-  if (alreadyDrafted) return res.status(400).json({ error: 'Player already drafted' });
-
-  const pick = {
-    overall: currentPickIndex + 1,
-    round: currentPick.round,
-    pickInRound: currentPick.pickInRound,
-    managerId: currentPick.managerId,
-    managerName: currentPick.managerName,
-    playerId,
-    timestamp: new Date().toISOString()
-  };
-
-  league.draftPicks.push(pick);
-
-  // Check if draft complete
-  if (league.draftPicks.length >= snakePicks.length) {
-    league.draftOpen = false;
-    league.draftComplete = true;
-  }
-
-  res.json({ success: true, pick });
-});
-
-// Admin: override/undo last pick
-app.delete('/api/leagues/:id/pick', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
-  if (league.draftPicks.length === 0) return res.status(400).json({ error: 'No picks to undo' });
-  const undone = league.draftPicks.pop();
-  res.json({ success: true, undone });
-});
-
-// Admin: add manual stat (penalty drawn, corrections)
-app.post('/api/leagues/:id/manual-stat', (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-  if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
-
-  const { playerId, stage, statType, value, note } = req.body;
-  const key = `${playerId}-${stage}`;
-  if (!league.manualStats[key]) league.manualStats[key] = [];
-  league.manualStats[key].push({ statType, value, note, addedAt: new Date().toISOString() });
-
-  res.json({ success: true });
-});
-
-// =============================================
-// API-FOOTBALL ENDPOINTS
-// =============================================
-
-// Get players for a competition/season
-app.get('/api/football/players', async (req, res) => {
-  try {
-    const { league, season, page = 1 } = req.query;
-    const data = await apiFootball('/players', { league, season, page });
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get fixtures for a competition
-app.get('/api/football/fixtures', async (req, res) => {
-  try {
-    const { league, season } = req.query;
-    const data = await apiFootball('/fixtures', { league, season });
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get fixture stats (events) for a specific game
-app.get('/api/football/fixture/:fixtureId', async (req, res) => {
-  try {
-    const [events, stats] = await Promise.all([
-      apiFootball('/fixtures/events', { fixture: req.params.fixtureId }),
-      apiFootball('/fixtures/statistics', { fixture: req.params.fixtureId })
-    ]);
-    res.json({ events: events.response, stats: stats.response });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get standings
-app.get('/api/football/standings', async (req, res) => {
-  try {
-    const { league, season } = req.query;
-    const data = await apiFootball('/standings', { league, season });
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get teams for a competition
-app.get('/api/football/teams', async (req, res) => {
-  try {
-    const { league, season } = req.query;
-    const data = await apiFootball('/teams', { league, season });
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// =============================================
-// SCORING ENGINE
-// =============================================
-app.get('/api/leagues/:id/scores', async (req, res) => {
-  const league = leagues[req.params.id];
-  if (!league) return res.status(404).json({ error: 'League not found' });
-
-  try {
-    const fixtures = await apiFootball('/fixtures', {
-      league: league.competition.leagueId,
-      season: league.competition.season
-    });
-
-    const finishedFixtures = fixtures.response.filter(f =>
-      f.fixture.status.short === 'FT' || f.fixture.status.short === 'AET' || f.fixture.status.short === 'PEN'
-    );
-
-    // Score each fixture
-    const scores = {};
-    for (const fixture of finishedFixtures) {
-      const fixtureId = fixture.fixture.id;
-      const events = await apiFootball('/fixtures/events', { fixture: fixtureId });
-      scores[fixtureId] = calculateFantasyPoints(events.response, fixture, league);
-    }
-
-    res.json({ scores, fixtures: finishedFixtures.map(f => ({
-      id: f.fixture.id,
-      home: f.teams.home.name,
-      away: f.teams.away.name,
-      date: f.fixture.date,
-      round: f.league.round
-    }))});
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-function calculateFantasyPoints(events, fixture, league) {
-  const playerPoints = {};
-  const homeTeamId = fixture.teams.home.id;
-  const awayTeamId = fixture.teams.away.id;
-  const homeScore = fixture.goals.home;
-  const awayScore = fixture.goals.away;
-  const homeWon = homeScore > awayScore;
-  const awayWon = awayScore > homeScore;
-  const homeCleanSheet = awayScore === 0;
-  const awayCleanSheet = homeScore === 0;
-
-  const addPoints = (playerId, pts, reason) => {
-    if (!playerPoints[playerId]) playerPoints[playerId] = { points: 0, breakdown: [] };
-    playerPoints[playerId].points += pts;
-    playerPoints[playerId].breakdown.push({ pts, reason });
-  };
-
-  events.forEach(event => {
-    const playerId = event.player?.id;
-    const assistId = event.assist?.id;
-    if (!playerId) return;
-
-    if (event.type === 'Goal') {
-      if (event.detail === 'Penalty') {
-        addPoints(playerId, 2, 'PK Goal');
-      } else if (event.detail === 'Missed Penalty') {
-        addPoints(playerId, -1, 'PK Miss');
-      } else {
-        addPoints(playerId, 3, 'Goal');
-      }
-      if (assistId) addPoints(assistId, 1, 'Assist');
-    }
-
-    if (event.type === 'Card' && event.detail === 'Red Card') {
-      addPoints(playerId, -2, 'Red Card');
-    }
-  });
-
-  // Team defense points
-  const teamDefensePoints = (teamId, won, cleanSheet) => {
-    let pts = 0;
-    const breakdown = [];
-    if (won) { pts += 1; breakdown.push({ pts: 1, reason: 'Win' }); }
-    if (cleanSheet) { pts += 2; breakdown.push({ pts: 2, reason: 'Clean Sheet' }); }
-    // Red cards for team defense checked from events
-    const redCards = events.filter(e => e.type === 'Card' && e.detail === 'Red Card' && e.team?.id === teamId).length;
-    if (redCards > 0) { pts -= redCards; breakdown.push({ pts: -redCards, reason: `${redCards} Red Card(s)` }); }
-    return { points: pts, breakdown, isTeam: true };
-  };
-
-  playerPoints[`team-${homeTeamId}`] = teamDefensePoints(homeTeamId, homeWon, homeCleanSheet);
-  playerPoints[`team-${awayTeamId}`] = teamDefensePoints(awayTeamId, awayWon, awayCleanSheet);
-
-  return playerPoints;
-}
-
-// =============================================
-// HELPERS
+// LEAGUE HELPERS
 // =============================================
 function generateToken() {
-  return Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+  return Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
 }
 
 function generateSnakePicks(draftOrder, rounds) {
   const picks = [];
+  if (!draftOrder || draftOrder.length === 0) return picks;
   for (let r = 0; r < rounds; r++) {
     const order = r % 2 === 0 ? [...draftOrder] : [...draftOrder].reverse();
     order.forEach((manager, i) => {
@@ -363,23 +91,348 @@ function generateSnakePicks(draftOrder, rounds) {
   return picks;
 }
 
-function sanitizeLeague(league) {
+async function getLeague(id) {
+  const leagueRes = await pool.query('SELECT * FROM leagues WHERE id = $1', [id]);
+  if (leagueRes.rows.length === 0) return null;
+  const league = leagueRes.rows[0];
+
+  const slotsRes = await pool.query('SELECT * FROM league_slots WHERE league_id = $1 ORDER BY slot', [id]);
+
   return {
     id: league.id,
     name: league.name,
-    managerCount: league.managerCount,
+    managerCount: league.manager_count,
     competition: league.competition,
-    managers: league.inviteLinks.filter(l => l.managerId).map(l => ({
-      slot: l.slot,
-      managerId: l.managerId,
-      managerName: l.managerName,
-      teamName: l.teamName
+    adminToken: league.admin_token,
+    draftOrder: league.draft_order || [],
+    draftPicks: league.draft_picks || [],
+    draftOpen: league.draft_open,
+    draftComplete: league.draft_complete,
+    manualStats: league.manual_stats || [],
+    inviteLinks: slotsRes.rows.map(s => ({
+      slot: s.slot,
+      token: s.token,
+      managerId: s.manager_id,
+      managerName: s.manager_name,
+      teamName: s.team_name
     })),
-    draftOrder: league.draftOrder,
-    draftPicks: league.draftPicks,
-    draftOpen: league.draftOpen,
-    draftComplete: league.draftComplete
+    managers: slotsRes.rows
+      .filter(s => s.manager_id)
+      .map(s => ({
+        slot: s.slot,
+        managerId: s.manager_id,
+        managerName: s.manager_name,
+        teamName: s.team_name
+      }))
   };
 }
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+function sanitizeLeague(league) {
+  const { adminToken, ...safe } = league;
+  // Remove tokens from invite links for public view
+  safe.inviteLinks = undefined;
+  return safe;
+}
+
+// =============================================
+// LEAGUE ROUTES
+// =============================================
+
+// Create league
+app.post('/api/leagues', async (req, res) => {
+  const { name, managerCount, competition } = req.body;
+  if (!name || !managerCount || !competition) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (managerCount % 2 !== 0 || managerCount < 8 || managerCount > 14) {
+    return res.status(400).json({ error: 'Manager count must be even, between 8 and 14' });
+  }
+
+  try {
+    const adminToken = generateToken();
+    const leagueRes = await pool.query(
+      `INSERT INTO leagues (name, manager_count, competition, admin_token)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [name, managerCount, JSON.stringify(competition), adminToken]
+    );
+    const leagueId = leagueRes.rows[0].id;
+
+    const inviteLinks = [];
+    for (let i = 0; i < managerCount; i++) {
+      const token = generateToken();
+      await pool.query(
+        `INSERT INTO league_slots (league_id, slot, token) VALUES ($1, $2, $3)`,
+        [leagueId, i + 1, token]
+      );
+      inviteLinks.push({ slot: i + 1, token });
+    }
+
+    res.json({ leagueId, adminToken, inviteLinks });
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get league (public)
+app.get('/api/leagues/:id', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    res.json(sanitizeLeague(league));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get league (admin)
+app.get('/api/leagues/:id/admin', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    res.json(league);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Join league
+app.post('/api/leagues/:id/join', async (req, res) => {
+  const { token, managerName, teamName } = req.body;
+  try {
+    const slotRes = await pool.query(
+      'SELECT * FROM league_slots WHERE league_id = $1 AND token = $2',
+      [req.params.id, token]
+    );
+    if (slotRes.rows.length === 0) return res.status(404).json({ error: 'Invalid invite link' });
+    const slot = slotRes.rows[0];
+    if (slot.manager_id) return res.status(400).json({ error: 'This slot is already taken' });
+
+    const managerId = generateToken();
+    await pool.query(
+      'UPDATE league_slots SET manager_id = $1, manager_name = $2, team_name = $3 WHERE id = $4',
+      [managerId, managerName, teamName, slot.id]
+    );
+
+    res.json({ managerId, managerName, teamName, slot: slot.slot });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Verify manager token (for rejoin)
+app.post('/api/leagues/:id/verify-manager', async (req, res) => {
+  const { managerId } = req.body;
+  try {
+    const slotRes = await pool.query(
+      'SELECT * FROM league_slots WHERE league_id = $1 AND manager_id = $2',
+      [req.params.id, managerId]
+    );
+    if (slotRes.rows.length === 0) return res.status(404).json({ error: 'Manager not found' });
+    const slot = slotRes.rows[0];
+    res.json({ managerId: slot.manager_id, managerName: slot.manager_name, teamName: slot.team_name });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Set draft order
+app.post('/api/leagues/:id/draft-order', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query(
+      'UPDATE leagues SET draft_order = $1 WHERE id = $2',
+      [JSON.stringify(req.body.order), req.params.id]
+    );
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Open/close draft
+app.post('/api/leagues/:id/draft-status', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query(
+      'UPDATE leagues SET draft_open = $1 WHERE id = $2',
+      [req.body.open, req.params.id]
+    );
+    res.json({ success: true, draftOpen: req.body.open });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Make a pick
+app.post('/api/leagues/:id/pick', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (!league.draftOpen) return res.status(400).json({ error: 'Draft is not open' });
+
+    const isAdmin = req.headers['x-admin-token'] === league.adminToken;
+    const { managerId, playerId } = req.body;
+
+    const snakePicks = generateSnakePicks(league.draftOrder, 8);
+    const currentPickIndex = league.draftPicks.length;
+    if (currentPickIndex >= snakePicks.length) return res.status(400).json({ error: 'Draft is complete' });
+
+    const currentPick = snakePicks[currentPickIndex];
+
+    if (!isAdmin && currentPick.managerId !== managerId) {
+      return res.status(403).json({ error: 'Not your turn' });
+    }
+
+    const alreadyDrafted = league.draftPicks.find(p => String(p.playerId) === String(playerId));
+    if (alreadyDrafted) return res.status(400).json({ error: 'Player already drafted' });
+
+    const pick = {
+      overall: currentPickIndex + 1,
+      round: currentPick.round,
+      pickInRound: currentPick.pickInRound,
+      managerId: currentPick.managerId,
+      managerName: currentPick.managerName,
+      playerId: String(playerId),
+      timestamp: new Date().toISOString()
+    };
+
+    const newPicks = [...league.draftPicks, pick];
+    const draftComplete = newPicks.length >= snakePicks.length;
+
+    await pool.query(
+      'UPDATE leagues SET draft_picks = $1, draft_open = $2, draft_complete = $3 WHERE id = $4',
+      [JSON.stringify(newPicks), draftComplete ? false : league.draftOpen, draftComplete, req.params.id]
+    );
+
+    res.json({ success: true, pick });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Undo last pick
+app.delete('/api/leagues/:id/pick', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+    if (league.draftPicks.length === 0) return res.status(400).json({ error: 'No picks to undo' });
+
+    const newPicks = league.draftPicks.slice(0, -1);
+    const undone = league.draftPicks[league.draftPicks.length - 1];
+
+    await pool.query(
+      'UPDATE leagues SET draft_picks = $1, draft_open = true, draft_complete = false WHERE id = $2',
+      [JSON.stringify(newPicks), req.params.id]
+    );
+
+    res.json({ success: true, undone });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Add manual stat
+app.post('/api/leagues/:id/manual-stat', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
+    const { playerId, stage, statType, value, note } = req.body;
+    const newStat = { playerId, stage, statType, value, note, addedAt: new Date().toISOString() };
+    const newStats = [...league.manualStats, newStat];
+
+    await pool.query(
+      'UPDATE leagues SET manual_stats = $1 WHERE id = $2',
+      [JSON.stringify(newStats), req.params.id]
+    );
+
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =============================================
+// API-FOOTBALL ROUTES
+// =============================================
+
+app.get('/api/football/players', async (req, res) => {
+  try {
+    const { league, season, page = 1 } = req.query;
+    const data = await apiFootball('/players', { league, season, page });
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/football/players/squads', async (req, res) => {
+  try {
+    const { team } = req.query;
+    const data = await apiFootball('/players/squads', { team });
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/football/fixtures', async (req, res) => {
+  try {
+    const { league, season } = req.query;
+    const data = await apiFootball('/fixtures', { league, season });
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/football/fixture/:fixtureId', async (req, res) => {
+  try {
+    const [events, stats] = await Promise.all([
+      apiFootball('/fixtures/events', { fixture: req.params.fixtureId }),
+      apiFootball('/fixtures/statistics', { fixture: req.params.fixtureId })
+    ]);
+    res.json({ events: events.response, stats: stats.response });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/football/teams', async (req, res) => {
+  try {
+    const { league, season } = req.query;
+    const data = await apiFootball('/teams', { league, season });
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/football/standings', async (req, res) => {
+  try {
+    const { league, season } = req.query;
+    const data = await apiFootball('/standings', { league, season });
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =============================================
+// START
+// =============================================
+initDB().then(() => {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+});
