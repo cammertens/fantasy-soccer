@@ -1411,7 +1411,7 @@ async function enterLeague() {
     if (state.isAdmin) document.getElementById('tab-admin').classList.remove('hidden');
 
     // Load players
-    await loadPlayers();
+    if (state.players.length === 0) await loadPlayers();
 
     // Go to home
     showPage('home');
@@ -1491,6 +1491,7 @@ for (const t of UCL_16) {
     });
 
     state.players = Array.from(playerMap.values());
+    console.log('Players loaded:', state.players.length);
 
     applyDraftPicks();
     populateCountryFilters();
