@@ -392,6 +392,26 @@ app.post('/api/leagues/:id/join', async (req, res) => {
   }
 });
 
+// Resolve invite token: already joined → managerId/name; not yet → pending (so refresh/reopen can re-enter)
+app.get('/api/leagues/:id/slot-by-token', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+  try {
+    const slotRes = await pool.query(
+      'SELECT manager_id, manager_name, team_name FROM league_slots WHERE league_id = $1 AND token = $2',
+      [req.params.id, token]
+    );
+    if (slotRes.rows.length === 0) return res.status(404).json({ error: 'Invalid invite link' });
+    const slot = slotRes.rows[0];
+    if (slot.manager_id) {
+      return res.json({ managerId: slot.manager_id, managerName: slot.manager_name, teamName: slot.team_name });
+    }
+    return res.json({ pending: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Verify manager token (for rejoin)
 app.post('/api/leagues/:id/verify-manager', async (req, res) => {
   const { managerId } = req.body;

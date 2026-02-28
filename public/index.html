@@ -1343,24 +1343,29 @@ async function joinWithToken() {
     }
   } catch(e) {}
 
-  // Try as manager invite
+  // Try as manager invite: resolve token (already joined → re-enter; else show setup)
   try {
-    const leagueRes = await fetch(`${API}/api/leagues/${urlLeague}`);
-    if (!leagueRes.ok) return showError('join-error', 'League not found.');
-    const league = await leagueRes.json();
-
-    // Check if this token is a valid invite
-    const inviteRes = await fetch(`${API}/api/leagues/${urlLeague}`, {});
-    // Show join form
-    state.pendingToken = urlToken;
-    state.leagueId = urlLeague;
-    document.getElementById('join-league-name').textContent = league.name;
-    document.getElementById('join-league-sub').textContent = `${league.competition.name} · ${league.managerCount} managers`;
-
-    // Check if already joined
-    // Show setup page
-    showPage('join');
-    return;
+    const slotRes = await fetch(`${API}/api/leagues/${urlLeague}/slot-by-token?token=${encodeURIComponent(urlToken)}`);
+    const slotData = await slotRes.json().catch(() => ({}));
+    if (slotRes.ok && slotData.managerId) {
+      state.managerId = slotData.managerId;
+      state.managerName = slotData.managerName || '';
+      saveState();
+      enterLeague();
+      return;
+    }
+    if (slotRes.ok && slotData.pending) {
+      const leagueRes = await fetch(`${API}/api/leagues/${urlLeague}`);
+      if (!leagueRes.ok) return showError('join-error', 'League not found.');
+      const league = await leagueRes.json();
+      state.pendingToken = urlToken;
+      state.leagueId = urlLeague;
+      document.getElementById('join-league-name').textContent = league.name;
+      document.getElementById('join-league-sub').textContent = `${league.competition?.name || ''} · ${league.managerCount} managers`;
+      showPage('join');
+      return;
+    }
+    showError('join-error', (slotData.error) || 'Invalid link. Please check and try again.');
   } catch(e) {
     showError('join-error', 'Invalid link. Please check and try again.');
   }
@@ -2337,13 +2342,45 @@ if (urlLeague && urlAdmin) {
 } else if (urlLeague && urlToken) {
   state.leagueId = urlLeague;
   state.pendingToken = urlToken;
-  // Load league info and show join page
-  fetch(`${API}/api/leagues/${urlLeague}`)
-    .then(r => r.json())
-    .then(league => {
-      document.getElementById('join-league-name').textContent = league.name;
-      document.getElementById('join-league-sub').textContent = `${league.competition?.name} · ${league.managerCount} managers`;
-      showPage('join');
+  // Resolve token: already joined → re-enter league; otherwise show join form
+  fetch(`${API}/api/leagues/${urlLeague}/slot-by-token?token=${encodeURIComponent(urlToken)}`)
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok && data.managerId) {
+        state.managerId = data.managerId;
+        state.managerName = data.managerName || '';
+        saveState();
+        enterLeague();
+        return;
+      }
+      if (ok && data.pending) {
+        fetch(`${API}/api/leagues/${urlLeague}`)
+          .then(r => r.json())
+          .then(league => {
+            document.getElementById('join-league-name').textContent = league.name;
+            document.getElementById('join-league-sub').textContent = `${league.competition?.name || ''} · ${league.managerCount} managers`;
+            showError('setup-error', '');
+            showPage('join');
+          });
+        return;
+      }
+      fetch(`${API}/api/leagues/${urlLeague}`)
+        .then(r => r.json())
+        .then(league => {
+          document.getElementById('join-league-name').textContent = league.name;
+          document.getElementById('join-league-sub').textContent = `${league.competition?.name || ''} · ${league.managerCount} managers`;
+          showError('setup-error', (data && data.error) ? data.error : 'Invalid invite link.');
+          showPage('join');
+        });
+    })
+    .catch(() => {
+      fetch(`${API}/api/leagues/${urlLeague}`)
+        .then(r => r.json())
+        .then(league => {
+          document.getElementById('join-league-name').textContent = league.name;
+          document.getElementById('join-league-sub').textContent = `${league.competition?.name || ''} · ${league.managerCount} managers`;
+          showPage('join');
+        });
     });
 } else if (state.leagueId && (state.adminToken || state.managerId)) {
   enterLeague();
