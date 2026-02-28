@@ -58,12 +58,170 @@ async function initDB() {
 // =============================================
 // API FOOTBALL HELPER
 // =============================================
-async function apiFootball(endpoint, params = {}) {
-  const response = await axios.get(`${API_BASE}${endpoint}`, {
-    headers: { 'x-apisports-key': API_KEY },
-    params
+const API_FOOTBALL_SQUADS_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+const API_FOOTBALL_MIN_INTERVAL_MS = 6500; // ~10/min safety margin
+let apiFootballNextAllowedAt = 0;
+let apiFootballQueue = Promise.resolve();
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function scheduleApiFootballRequest(label, fn) {
+  apiFootballQueue = apiFootballQueue.then(async () => {
+    const now = Date.now();
+    const waitMs = Math.max(0, apiFootballNextAllowedAt - now);
+    if (waitMs > 0) console.log(`[apiFootball] throttle wait ${waitMs}ms (${label})`);
+    if (waitMs > 0) await sleep(waitMs);
+    const start = Date.now();
+    apiFootballNextAllowedAt = start + API_FOOTBALL_MIN_INTERVAL_MS;
+    return fn();
   });
-  return response.data;
+  return apiFootballQueue;
+}
+
+function stableStringify(obj) {
+  if (!obj || typeof obj !== 'object') return String(obj);
+  const keys = Object.keys(obj).sort();
+  return keys.map(k => `${k}=${encodeURIComponent(String(obj[k]))}`).join('&');
+}
+
+const apiFootballCache = new Map(); // key -> { expiresAt, data }
+
+function getApiFootballCached(key) {
+  const entry = apiFootballCache.get(key);
+  if (!entry) return null;
+  if (Date.now() >= entry.expiresAt) {
+    apiFootballCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setApiFootballCached(key, data, ttlMs) {
+  apiFootballCache.set(key, { expiresAt: Date.now() + ttlMs, data });
+}
+
+class ApiFootballError extends Error {
+  constructor(message, { status = 502, endpoint, params, upstreamStatus, upstreamErrors, upstreamBody, retryAfterSeconds } = {}) {
+    super(message);
+    this.name = 'ApiFootballError';
+    this.isApiFootballError = true;
+    this.status = status;
+    this.endpoint = endpoint;
+    this.params = params;
+    this.upstreamStatus = upstreamStatus;
+    this.upstreamErrors = upstreamErrors;
+    this.upstreamBody = upstreamBody;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+function hasUpstreamErrors(data) {
+  const errs = data && data.errors;
+  if (!errs) return false;
+  if (Array.isArray(errs)) return errs.length > 0;
+  if (typeof errs === 'object') return Object.keys(errs).length > 0;
+  return Boolean(errs);
+}
+
+function sendApiFootballError(res, e) {
+  if (e && e.isApiFootballError) {
+    if (e.status === 429 && e.retryAfterSeconds) res.set('Retry-After', String(e.retryAfterSeconds));
+    return res.status(e.status).json({
+      error: e.message,
+      upstreamStatus: e.upstreamStatus,
+      upstreamErrors: e.upstreamErrors,
+      endpoint: e.endpoint,
+      params: e.params
+    });
+  }
+  return res.status(500).json({ error: e.message });
+}
+
+async function apiFootball(endpoint, params = {}) {
+  if (endpoint === '/players/squads') {
+    const cacheKey = `${endpoint}?${stableStringify(params)}`;
+    const cached = getApiFootballCached(cacheKey);
+    if (cached) {
+      console.log(`[apiFootball] squads cache hit team=${params.team}`);
+      return cached;
+    }
+    console.log(`[apiFootball] squads cache miss team=${params.team}`);
+    try {
+      const response = await scheduleApiFootballRequest(`GET ${endpoint} team=${params.team}`, () =>
+        axios.get(`${API_BASE}${endpoint}`, {
+          headers: { 'x-apisports-key': API_KEY },
+          params
+        })
+      );
+      const data = response.data;
+      if (hasUpstreamErrors(data)) {
+        const errors = data.errors;
+        throw new ApiFootballError('API-Football returned errors', {
+          status: 429,
+          retryAfterSeconds: 60,
+          endpoint,
+          params,
+          upstreamStatus: 200,
+          upstreamErrors: errors,
+          upstreamBody: data
+        });
+      }
+      setApiFootballCached(cacheKey, data, API_FOOTBALL_SQUADS_TTL_MS);
+      return data;
+    } catch (e) {
+      if (e && e.isApiFootballError) throw e;
+      if (e && e.response) {
+        throw new ApiFootballError('API-Football HTTP error', {
+          status: e.response.status === 429 ? 429 : 502,
+          retryAfterSeconds: e.response.status === 429 ? 60 : undefined,
+          endpoint,
+          params,
+          upstreamStatus: e.response.status,
+          upstreamErrors: e.response.data && e.response.data.errors,
+          upstreamBody: e.response.data
+        });
+      }
+      throw e;
+    }
+  }
+  try {
+    const response = await scheduleApiFootballRequest(`GET ${endpoint}`, () =>
+      axios.get(`${API_BASE}${endpoint}`, {
+        headers: { 'x-apisports-key': API_KEY },
+        params
+      })
+    );
+    const data = response.data;
+    if (hasUpstreamErrors(data)) {
+      throw new ApiFootballError('API-Football returned errors', {
+        status: 429,
+        retryAfterSeconds: 60,
+        endpoint,
+        params,
+        upstreamStatus: 200,
+        upstreamErrors: data.errors,
+        upstreamBody: data
+      });
+    }
+    return data;
+  } catch (e) {
+    if (e && e.isApiFootballError) throw e;
+    if (e && e.response) {
+      throw new ApiFootballError('API-Football HTTP error', {
+        status: e.response.status === 429 ? 429 : 502,
+        retryAfterSeconds: e.response.status === 429 ? 60 : undefined,
+        endpoint,
+        params,
+        upstreamStatus: e.response.status,
+        upstreamErrors: e.response.data && e.response.data.errors,
+        upstreamBody: e.response.data
+      });
+    }
+    throw e;
+  }
 }
 
 // =============================================
@@ -385,7 +543,7 @@ app.get('/api/football/players', async (req, res) => {
     const data = await apiFootball('/players', { league, season, page });
     res.json(data);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    sendApiFootballError(res, e);
   }
 });
 
@@ -395,7 +553,7 @@ app.get('/api/football/players/squads', async (req, res) => {
     const data = await apiFootball('/players/squads', { team });
     res.json(data);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    sendApiFootballError(res, e);
   }
 });
 
@@ -405,7 +563,7 @@ app.get('/api/football/fixtures', async (req, res) => {
     const data = await apiFootball('/fixtures', { league, season });
     res.json(data);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    sendApiFootballError(res, e);
   }
 });
 
@@ -417,7 +575,7 @@ app.get('/api/football/fixture/:fixtureId', async (req, res) => {
     ]);
     res.json({ events: events.response, stats: stats.response });
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    sendApiFootballError(res, e);
   }
 });
 
@@ -427,7 +585,7 @@ app.get('/api/football/teams', async (req, res) => {
     const data = await apiFootball('/teams', { league, season });
     res.json(data);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    sendApiFootballError(res, e);
   }
 });
 
@@ -437,7 +595,7 @@ app.get('/api/football/standings', async (req, res) => {
     const data = await apiFootball('/standings', { league, season });
     res.json(data);
   } catch(e) {
-    res.status(500).json({ error: e.message });
+    sendApiFootballError(res, e);
   }
 });
 

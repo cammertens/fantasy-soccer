@@ -946,6 +946,8 @@
   </div>
 </nav>
 
+<div class="error-msg" id="global-error" style="display:none;max-width:1100px;margin:10px auto 0 auto"></div>
+
 <!-- ===== LANDING PAGE ===== -->
 <div id="page-landing" class="page active">
   <div class="landing">
@@ -1431,6 +1433,7 @@ async function loadPlayers() {
   if (!state.league) return;
   if (state.loadingPlayers) return;
   state.loadingPlayers = true;
+  showError('global-error', '');
   // Use cached players if available
   const cached = localStorage.getItem('fsl_players');
   const cachedTeams = localStorage.getItem('fsl_teams');
@@ -1440,6 +1443,7 @@ async function loadPlayers() {
     applyDraftPicks();
     populateCountryFilters();
     populateManualPlayerSelect();
+    state.loadingPlayers = false;
     return;
   }
   const { leagueId, season } = state.league.competition;
@@ -1477,15 +1481,26 @@ state.teams = UCL_16.map(t => ({
 
 const playerMap = new Map();
 const squadResults = [];
+let firstSquadError = null;
 for (const t of UCL_16) {
   try {
     console.log('Fetching:', t.name, t.id);
     const r = await fetch(`${API}/api/football/players/squads?team=${t.id}`);
+    if (!r.ok) {
+      let errBody = null;
+      try { errBody = await r.json(); } catch(_) {}
+      const msg = (errBody && errBody.error) ? errBody.error : `HTTP ${r.status}`;
+      throw new Error(msg);
+    }
     const data = await r.json();
+    if (data && data.errors && Object.keys(data.errors).length > 0) {
+      throw new Error(`API error: ${JSON.stringify(data.errors)}`);
+    }
     console.log('Got:', t.name, (data.response||[]).length > 0 ? 'OK' : 'EMPTY');
     squadResults.push(data);
   } catch(e) {
     console.log('FAILED:', t.name, e.message);
+    if (!firstSquadError) firstSquadError = `Some teams failed to load (likely API rate limit). Try again in ~60s. (${t.name}: ${e.message})`;
     squadResults.push({ response: [] });
   }
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -1518,8 +1533,12 @@ for (const t of UCL_16) {
     populateCountryFilters();
     populateManualPlayerSelect();
 
+    if (firstSquadError) showError('global-error', firstSquadError);
+
   } catch(e) {
     console.error('Failed to load players', e);
+    showError('global-error', `Failed to load players: ${e.message}`);
+    state.loadingPlayers = false;
   }
 }
 
