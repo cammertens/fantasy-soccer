@@ -773,91 +773,6 @@
   .result-manager { font-size: 11px; color: var(--gray); }
   .result-country { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gray); margin-left: 6px; }
 
-  /* ===== PLAYER POOL PAGE ===== */
-  .pool-page { padding: 16px; max-width: 1400px; margin: 0 auto; }
-
-  .pool-page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; color: var(--gold); }
-
-  .pool-page-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-
-  .pool-page-search {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    color: var(--white);
-    padding: 8px 14px;
-    border-radius: 5px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    outline: none;
-    width: 220px;
-  }
-
-  .pool-page-filter {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    color: var(--white);
-    padding: 8px 12px;
-    border-radius: 5px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    cursor: pointer;
-    outline: none;
-  }
-
-  .pool-table { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; }
-
-  .pool-table-header {
-    display: grid;
-    grid-template-columns: 1fr 70px 60px 50px 50px 50px 50px 50px 50px 50px 50px 100px;
-    padding: 10px 16px;
-    background: var(--green-dark);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--gray-light);
-  }
-
-  .pool-table-header span { text-align: center; }
-  .pool-table-header span:first-child { text-align: left; }
-  .pool-table-header span:last-child { text-align: right; }
-
-  .pool-table-row {
-    display: grid;
-    grid-template-columns: 1fr 70px 60px 50px 50px 50px 50px 50px 50px 50px 50px 100px;
-    padding: 9px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    font-size: 13px;
-    align-items: center;
-    transition: background 0.1s;
-  }
-
-  .pool-table-row:hover { background: rgba(255,255,255,0.03); }
-  .pool-table-row.drafted { opacity: 0.35; }
-  .pool-table-row span { text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--gray-light); }
-  .pool-table-row span:first-child { text-align: left; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--white); }
-  .pool-table-row span:last-child { text-align: right; font-weight: 700; color: var(--gold); font-family: 'DM Sans', sans-serif; font-size: 12px; }
-
-  .tag-drafted {
-    font-size: 9px;
-    background: rgba(192,57,43,0.3);
-    color: #f87171;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-left: 6px;
-  }
-
   /* Loading & empty states */
   .loading-state {
     display: flex;
@@ -922,9 +837,6 @@
     .draft-body { grid-template-columns: 1fr; height: auto; }
     .draft-col { border-right: none; border-bottom: 1px solid var(--card-border); max-height: 400px; }
     .nav-tab { padding: 0 10px; font-size: 11px; }
-    .pool-table-header, .pool-table-row { grid-template-columns: 1fr 60px 50px 50px 50px 80px; }
-    .pool-table-header span:nth-child(n+5):nth-child(-n+11),
-    .pool-table-row span:nth-child(n+5):nth-child(-n+11) { display: none; }
     .manual-stat-form { grid-template-columns: 1fr 1fr; }
     .landing-card { padding: 24px; }
   }
@@ -937,7 +849,6 @@
   <div class="nav-tabs">
     <button class="nav-tab hidden" id="tab-home" onclick="showPage('home', this)">Standings</button>
     <button class="nav-tab hidden" id="tab-draft" onclick="showPage('draft', this)">Draft Room</button>
-    <button class="nav-tab hidden" id="tab-pool" onclick="showPage('pool', this)">Player Pool</button>
     <button class="nav-tab hidden" id="tab-admin" onclick="showPage('admin', this)">Admin ⚙</button>
   </div>
   <div class="nav-right">
@@ -1105,41 +1016,6 @@
   </div>
 </div>
 
-<!-- ===== PLAYER POOL PAGE ===== -->
-<div id="page-pool" class="page pool-page">
-  <div class="pool-page-header">
-    <div class="page-title">Player Pool</div>
-    <div class="pool-page-controls">
-      <input class="pool-page-search" type="text" placeholder="Search..." id="pool-search" oninput="filterPoolPage()">
-      <select class="pool-page-filter" id="pool-pos-filter" onchange="filterPoolPage()">
-        <option value="">All Positions</option>
-        <option value="FW">Forwards</option>
-        <option value="MF">Midfielders</option>
-        <option value="DF">Defenders</option>
-        <option value="GK">Goalkeepers</option>
-        <option value="TEAM">Team Defense</option>
-      </select>
-      <select class="pool-page-filter" id="pool-country-filter" onchange="filterPoolPage()">
-        <option value="">All Countries</option>
-      </select>
-      <select class="pool-page-filter" id="pool-status-filter" onchange="filterPoolPage()">
-        <option value="">All Players</option>
-        <option value="available">Available</option>
-        <option value="drafted">Drafted</option>
-      </select>
-    </div>
-  </div>
-  <div class="pool-table">
-    <div class="pool-table-header">
-      <span>Player</span><span>Country</span><span>Pos</span>
-      <span>GS1</span><span>GS2</span><span>GS3</span>
-      <span>R32</span><span>R16</span><span>QF</span><span>SF</span><span>F</span>
-      <span>Total / Status</span>
-    </div>
-    <div id="pool-table-body"><div class="loading-state"><div class="spinner"></div> Loading...</div></div>
-  </div>
-</div>
-
 <!-- ===== ADMIN PAGE ===== -->
 <div id="page-admin" class="page">
   <div class="admin-setup">
@@ -1162,6 +1038,14 @@
         <button class="btn btn-primary btn-sm" onclick="randomizeDraftOrder()">Randomize</button>
         <button class="btn btn-gold btn-sm" onclick="saveDraftOrder()">Save Order</button>
       </div>
+    </div>
+
+    <!-- Player Pool -->
+    <div class="admin-card">
+      <div class="section-title">Player Pool</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Re-pull squads from the API to add new players (e.g. transfers). Existing players are never removed.</p>
+      <button class="btn btn-outline btn-sm" onclick="refreshPlayerPool()">Refresh Player Pool</button>
+      <div class="success-msg" id="player-pool-msg" style="margin-top:10px"></div>
     </div>
 
     <!-- Draft Controls -->
@@ -1213,6 +1097,13 @@
       <div class="section-title">Your Admin Link</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:8px">Save this — it's how you get back to this admin panel.</p>
       <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);word-break:break-all;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px" id="admin-link-display"></div>
+    </div>
+
+    <div class="admin-card" style="border-color:rgba(192,57,43,0.3)">
+      <div class="section-title" style="color:#f87171">Danger Zone</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Permanently delete this league and all its data. This cannot be undone.</p>
+      <button class="btn btn-sm" style="background:rgba(192,57,43,0.2);color:#f87171;border:1px solid rgba(192,57,43,0.4)" onclick="deleteLeague()">Delete League</button>
+      <div class="error-msg" id="delete-league-msg" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -1414,11 +1305,10 @@ async function enterLeague() {
     // Show tabs
     document.getElementById('tab-home').classList.remove('hidden');
     document.getElementById('tab-draft').classList.remove('hidden');
-    document.getElementById('tab-pool').classList.remove('hidden');
     if (state.isAdmin) document.getElementById('tab-admin').classList.remove('hidden');
 
-    // Load players
-    if (state.players.length === 0) await loadPlayers();
+    // Load players (always fetch; server serves from Postgres, no API pull if pool exists)
+    await loadPlayers();
 
     // Go to home
     showPage('home');
@@ -1439,110 +1329,22 @@ async function loadPlayers() {
   if (state.loadingPlayers) return;
   state.loadingPlayers = true;
   showError('global-error', '');
-  // Use cached players if available
-  const cached = localStorage.getItem('fsl_players');
-  const cachedTeams = localStorage.getItem('fsl_teams');
-  if (cached && cachedTeams) {
-    state.players = JSON.parse(cached);
-    state.teams = JSON.parse(cachedTeams);
+
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/players`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    state.players = data.players || [];
+    state.teams = data.teams || [];
     applyDraftPicks();
     populateCountryFilters();
     populateManualPlayerSelect();
-    state.loadingPlayers = false;
-    return;
-  }
-  const { leagueId, season } = state.league.competition;
-
-  try {
-    // Load teams
-    const UCL_16 = [
-  { id: 40,  name: 'Liverpool',         code: 'LIV' },
-  { id: 42,  name: 'Arsenal',           code: 'ARS' },
-  { id: 50,  name: 'Manchester City',   code: 'MAN' },
-  { id: 529, name: 'Barcelona',         code: 'BAR' },
-  { id: 541, name: 'Real Madrid',       code: 'REA' },
-  { id: 530, name: 'Atletico Madrid',   code: 'ATL' },
-  { id: 157, name: 'Bayern Munich',     code: 'BAY' },
-  { id: 85,  name: 'PSG',              code: 'PAR' },
-  { id: 168, name: 'Bayer Leverkusen', code: 'BAY' },
-  { id: 499, name: 'Atalanta',         code: 'ATA' },
-  { id: 228, name: 'Sporting CP',      code: 'SPO' },
-  { id: 49,  name: 'Chelsea',          code: 'CHE' },
-  { id: 47,  name: 'Tottenham',        code: 'TOT' },
-  { id: 34,  name: 'Newcastle',        code: 'NEW' },
-  { id: 645, name: 'Galatasaray',      code: 'GAL' },
-  { id: 327, name: 'Bodo/Glimt',       code: 'BOD' },
-];
-
-state.teams = UCL_16.map(t => ({
-  id: `team-${t.id}`,
-  apiId: t.id,
-  name: `${t.name} Defense`,
-  country: t.code,
-  pos: 'TEAM',
-  scores: {},
-  draftedBy: null
-}));
-
-const playerMap = new Map();
-const squadResults = [];
-let firstSquadError = null;
-for (const t of UCL_16) {
-  try {
-    console.log('Fetching:', t.name, t.id);
-    const r = await fetch(`${API}/api/football/players/squads?team=${t.id}`);
-    if (!r.ok) {
-      let errBody = null;
-      try { errBody = await r.json(); } catch(_) {}
-      const msg = (errBody && errBody.error) ? errBody.error : `HTTP ${r.status}`;
-      throw new Error(msg);
-    }
-    const data = await r.json();
-    if (data && data.errors && Object.keys(data.errors).length > 0) {
-      throw new Error(`API error: ${JSON.stringify(data.errors)}`);
-    }
-    console.log('Got:', t.name, (data.response||[]).length > 0 ? 'OK' : 'EMPTY');
-    squadResults.push(data);
-  } catch(e) {
-    console.log('FAILED:', t.name, e.message);
-    if (!firstSquadError) firstSquadError = `Some teams failed to load (likely API rate limit). Try again in ~60s. (${t.name}: ${e.message})`;
-    squadResults.push({ response: [] });
-  }
-  await new Promise(resolve => setTimeout(resolve, 500));
-}
-    squadResults.forEach(data => {
-      (data.response || []).forEach(squad => {
-        (squad.players || []).forEach(p => {
-          if (!playerMap.has(p.id)) {
-            playerMap.set(p.id, {
-              id: p.id,
-              name: p.name,
-              country: squad.team.code || squad.team.name.substring(0,3).toUpperCase(),
-              pos: mapPosition(p.position),
-              scores: {},
-              draftedBy: null
-            });
-          }
-        });
-      });
-    });
-
-    state.players = Array.from(playerMap.values());
-    console.log('Players loaded:', state.players.length);
-    // Cache players locally so we don't hit API again
-    localStorage.setItem('fsl_players', JSON.stringify(state.players));
-    localStorage.setItem('fsl_teams', JSON.stringify(state.teams));
-    state.loadingPlayers = false;
-
-    applyDraftPicks();
-    populateCountryFilters();
-    populateManualPlayerSelect();
-
-    if (firstSquadError) showError('global-error', firstSquadError);
-
+    console.log('Players loaded:', state.players.length, 'teams:', state.teams.length);
   } catch(e) {
     console.error('Failed to load players', e);
     showError('global-error', `Failed to load players: ${e.message}`);
+    // Leave any existing in-memory state.players/teams as-is on error
+  } finally {
     state.loadingPlayers = false;
   }
 }
@@ -1953,58 +1755,6 @@ function renderDraftResults() {
 }
 
 // =============================================
-// PLAYER POOL PAGE
-// =============================================
-function renderPoolPage(filtered) {
-  const players = filtered !== undefined ? filtered : getAllPlayers();
-  const body = document.getElementById('pool-table-body');
-  const picks = state.league?.draftPicks || [];
-  const draftedIds = new Set(picks.map(p => String(p.playerId)));
-
-  if (players.length === 0) {
-    body.innerHTML = '<div class="empty-state">No players match</div>';
-    return;
-  }
-
-  body.innerHTML = players.map(p => {
-    const drafted = draftedIds.has(String(p.id));
-    const manager = drafted ? state.league?.managers?.find(m => m.managerId === p.draftedBy) : null;
-    const total = getPlayerTotal(p);
-    const stageCells = STAGES.map(s => {
-      const v = p.scores[s];
-      return `<span>${v !== undefined ? formatScore(v) : ''}</span>`;
-    }).join('');
-    return `
-      <div class="pool-table-row ${drafted ? 'drafted' : ''}">
-        <span>${p.name}${drafted ? '<span class="tag-drafted">drafted</span>' : ''}</span>
-        <span>${p.country}</span>
-        <span><span class="pool-player-pos pos-${p.pos.toLowerCase()}">${p.pos}</span></span>
-        ${stageCells}
-        <span>${drafted ? (manager?.managerName || '—') : (total > 0 ? total+' pts' : 'Available')}</span>
-      </div>`;
-  }).join('');
-}
-
-function filterPoolPage() {
-  const search = document.getElementById('pool-search').value.toLowerCase();
-  const pos = document.getElementById('pool-pos-filter').value;
-  const country = document.getElementById('pool-country-filter').value;
-  const status = document.getElementById('pool-status-filter').value;
-  const picks = state.league?.draftPicks || [];
-  const draftedIds = new Set(picks.map(p => String(p.playerId)));
-
-  const filtered = getAllPlayers().filter(p => {
-    if (pos && p.pos !== pos) return false;
-    if (country && p.country !== country) return false;
-    if (status === 'available' && draftedIds.has(String(p.id))) return false;
-    if (status === 'drafted' && !draftedIds.has(String(p.id))) return false;
-    if (search && !p.name.toLowerCase().includes(search) && !p.country.toLowerCase().includes(search)) return false;
-    return true;
-  });
-  renderPoolPage(filtered);
-}
-
-// =============================================
 // ADMIN PAGE
 // =============================================
 function setupAdminPage() {
@@ -2114,6 +1864,35 @@ async function toggleDraft(open) {
   } catch(e) { alert('Failed to update draft status.'); }
 }
 
+async function refreshPlayerPool() {
+  const msgEl = document.getElementById('player-pool-msg');
+  if (!msgEl) return;
+  msgEl.textContent = 'Refreshing...';
+  msgEl.style.display = 'block';
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/players/refresh`, {
+      method: 'POST',
+      headers: { 'x-admin-token': state.adminToken }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      state.players = data.players || [];
+      state.teams = data.teams || [];
+      applyDraftPicks();
+      populateCountryFilters();
+      populateManualPlayerSelect();
+      const added = data.added ?? 0;
+      msgEl.textContent = added > 0 ? `Added ${added} new player(s).` : 'Pool refreshed (no new players).';
+      renderDraft();
+      renderHome();
+    } else {
+      msgEl.textContent = data.error || 'Refresh failed.';
+    }
+  } catch(e) {
+    msgEl.textContent = 'Refresh failed: ' + (e.message || 'network error');
+  }
+}
+
 async function undoLastPick() {
   if (!confirm('Undo the last pick?')) return;
   try {
@@ -2211,7 +1990,7 @@ function generateSnakePicks(draftOrder, rounds) {
 
 function populateCountryFilters() {
   const countries = [...new Set(getAllPlayers().map(p => p.country))].sort();
-  ['draft-country-filter', 'pool-country-filter'].forEach(id => {
+  ['draft-country-filter'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     countries.forEach(c => {
@@ -2257,6 +2036,25 @@ function goHome() {
   window.location.href = window.location.origin;
 }
 
+async function deleteLeague() {
+  if (!confirm('Are you sure you want to permanently delete this league? This cannot be undone.')) return;
+  if (!confirm('Last warning — all managers, picks, and player data will be deleted forever.')) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-token': state.adminToken }
+    });
+    const data = await res.json();
+    if (!res.ok) return showError('delete-league-msg', data.error || 'Delete failed.');
+    localStorage.removeItem('fsl_state');
+    localStorage.removeItem('fsl_leagues');
+    alert('League deleted.');
+    window.location.href = window.location.origin;
+  } catch(e) {
+    showError('delete-league-msg', 'Delete failed: ' + e.message);
+  }
+}
+
 function showPage(name, tabEl) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -2264,7 +2062,6 @@ function showPage(name, tabEl) {
   if (tabEl) tabEl.classList.add('active');
 
   if (name === 'draft') renderDraft();
-  if (name === 'pool') { renderPoolPage(); filterPoolPage(); }
   if (name === 'admin') setupAdminPage();
 }
 
@@ -2291,7 +2088,6 @@ setInterval(async () => {
     const activePage = document.querySelector('.page.active')?.id;
     if (activePage === 'page-home') renderHome();
     if (activePage === 'page-draft') renderDraft();
-    if (activePage === 'page-pool') renderPoolPage();
   }
 }, 30000);
 

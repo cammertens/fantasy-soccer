@@ -48,6 +48,17 @@ async function initDB() {
         manager_name TEXT,
         team_name TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS player_pools (
+        id SERIAL PRIMARY KEY,
+        league_api_id INTEGER NOT NULL,
+        season INTEGER NOT NULL,
+        players JSONB NOT NULL DEFAULT '[]',
+        teams JSONB NOT NULL DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_refreshed_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(league_api_id, season)
+      );
     `);
     console.log('Database initialized');
   } catch(e) {
@@ -293,6 +304,145 @@ function sanitizeLeague(league) {
 }
 
 // =============================================
+// PLAYER POOL
+// =============================================
+const COMPETITION_TEAMS = {
+  2: [ // UEFA Champions League
+    { id: 40, name: 'Liverpool', code: 'LIV' },
+    { id: 42, name: 'Arsenal', code: 'ARS' },
+    { id: 50, name: 'Manchester City', code: 'MAN' },
+    { id: 529, name: 'Barcelona', code: 'BAR' },
+    { id: 541, name: 'Real Madrid', code: 'REA' },
+    { id: 530, name: 'Atletico Madrid', code: 'ATL' },
+    { id: 157, name: 'Bayern Munich', code: 'BAY' },
+    { id: 85, name: 'PSG', code: 'PAR' },
+    { id: 168, name: 'Bayer Leverkusen', code: 'BAY' },
+    { id: 499, name: 'Atalanta', code: 'ATA' },
+    { id: 228, name: 'Sporting CP', code: 'SPO' },
+    { id: 49, name: 'Chelsea', code: 'CHE' },
+    { id: 47, name: 'Tottenham', code: 'TOT' },
+    { id: 34, name: 'Newcastle', code: 'NEW' },
+    { id: 645, name: 'Galatasaray', code: 'GAL' },
+    { id: 327, name: 'Bodo/Glimt', code: 'BOD' }
+  ]
+  // Add more competitions (e.g. 1 for World Cup) as needed
+};
+
+function mapPosition(pos) {
+  if (!pos) return 'MF';
+  const p = String(pos).toLowerCase();
+  if (p.includes('attack') || p.includes('forward')) return 'FW';
+  if (p.includes('midfield')) return 'MF';
+  if (p.includes('defend')) return 'DF';
+  if (p.includes('goal')) return 'GK';
+  return 'MF';
+}
+
+async function fetchSquadsFromApi(leagueApiId) {
+  const teams = COMPETITION_TEAMS[leagueApiId];
+  if (!teams) throw new Error(`Unknown competition: league ${leagueApiId}`);
+
+  const playerMap = new Map();
+  const squadResults = [];
+
+  for (const t of teams) {
+    try {
+      const data = await apiFootball('/players/squads', { team: t.id });
+      squadResults.push(data);
+      (data.response || []).forEach(squad => {
+        (squad.players || []).forEach(p => {
+          if (!playerMap.has(p.id)) {
+            playerMap.set(p.id, {
+              id: p.id,
+              name: p.name,
+              country: squad.team?.code || (squad.team?.name || '').substring(0, 3).toUpperCase() || '???',
+              pos: mapPosition(p.position),
+              scores: {},
+              draftedBy: null
+            });
+          }
+        });
+      });
+    } catch (e) {
+      console.warn(`[playerPool] squad fetch failed team=${t.id}:`, e.message);
+      squadResults.push({ response: [] });
+    }
+    await sleep(500);
+  }
+
+  const players = Array.from(playerMap.values());
+  const teamsData = teams.map(t => ({
+    id: `team-${t.id}`,
+    apiId: t.id,
+    name: `${t.name} Defense`,
+    country: t.code,
+    pos: 'TEAM',
+    scores: {},
+    draftedBy: null
+  }));
+
+  return { players, teams: teamsData };
+}
+
+async function getOrCreatePlayerPool(leagueApiId, season) {
+  const res = await pool.query(
+    'SELECT players, teams FROM player_pools WHERE league_api_id = $1 AND season = $2',
+    [leagueApiId, season]
+  );
+  if (res.rows.length > 0) {
+    return {
+      players: res.rows[0].players || [],
+      teams: res.rows[0].teams || [],
+      fromDb: true
+    };
+  }
+  const { players, teams } = await fetchSquadsFromApi(leagueApiId);
+  await pool.query(
+    `INSERT INTO player_pools (league_api_id, season, players, teams)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (league_api_id, season) DO UPDATE SET
+       players = EXCLUDED.players,
+       teams = EXCLUDED.teams,
+       last_refreshed_at = NOW()`,
+    [leagueApiId, season, JSON.stringify(players), JSON.stringify(teams)]
+  );
+  return { players, teams, fromDb: false };
+}
+
+async function refreshPlayerPool(leagueApiId, season) {
+  const res = await pool.query(
+    'SELECT players, teams FROM player_pools WHERE league_api_id = $1 AND season = $2',
+    [leagueApiId, season]
+  );
+  const existingPlayers = (res.rows[0]?.players || []);
+  const existingTeams = (res.rows[0]?.teams || []).length > 0 ? res.rows[0].teams : null;
+  const existingIds = new Set(existingPlayers.map(p => String(p.id)));
+
+  const { players: freshPlayers, teams: freshTeams } = await fetchSquadsFromApi(leagueApiId);
+  const merged = [...existingPlayers];
+  let added = 0;
+  for (const p of freshPlayers) {
+    if (!existingIds.has(String(p.id))) {
+      merged.push(p);
+      existingIds.add(String(p.id));
+      added++;
+    }
+  }
+  const teamsToSave = existingTeams || freshTeams;
+
+  await pool.query(
+    `INSERT INTO player_pools (league_api_id, season, players, teams)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (league_api_id, season) DO UPDATE SET
+       players = EXCLUDED.players,
+       teams = EXCLUDED.teams,
+       last_refreshed_at = NOW()`,
+    [leagueApiId, season, JSON.stringify(merged), JSON.stringify(teamsToSave)]
+  );
+  return { players: merged, teams: teamsToSave, added };
+}
+
+// =============================================
 // LEAGUE ROUTES
 // =============================================
 
@@ -424,6 +574,62 @@ app.post('/api/leagues/:id/verify-manager', async (req, res) => {
     const slot = slotRes.rows[0];
     res.json({ managerId: slot.manager_id, managerName: slot.manager_name, teamName: slot.team_name });
   } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/leagues/:id', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pool.query('DELETE FROM league_slots WHERE league_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM leagues WHERE id = $1', [req.params.id]);
+
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get player pool (serves from PostgreSQL; only calls API if no pool exists)
+app.get('/api/leagues/:id/players', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const comp = league.competition;
+    if (!comp || comp.leagueId == null || comp.season == null) {
+      return res.status(400).json({ error: 'League has no competition configured' });
+    }
+    const leagueApiId = typeof comp.leagueId === 'number' ? comp.leagueId : parseInt(comp.leagueId, 10);
+    const season = typeof comp.season === 'number' ? comp.season : parseInt(comp.season, 10);
+    const { players, teams } = await getOrCreatePlayerPool(leagueApiId, season);
+    res.json({ players, teams });
+  } catch(e) {
+    console.error('[players]', e);
+    if (e && e.isApiFootballError) return sendApiFootballError(res, e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Refresh player pool (admin only): re-pulls squads, adds new players without removing existing
+app.post('/api/leagues/:id/players/refresh', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+    const comp = league.competition;
+    if (!comp || comp.leagueId == null || comp.season == null) {
+      return res.status(400).json({ error: 'League has no competition configured' });
+    }
+    const leagueApiId = typeof comp.leagueId === 'number' ? comp.leagueId : parseInt(comp.leagueId, 10);
+    const season = typeof comp.season === 'number' ? comp.season : parseInt(comp.season, 10);
+    const { players, teams, added } = await refreshPlayerPool(leagueApiId, season);
+    res.json({ players, teams, added });
+  } catch(e) {
+    console.error('[players/refresh]', e);
+    if (e && e.isApiFootballError) return sendApiFootballError(res, e);
     res.status(500).json({ error: e.message });
   }
 });
