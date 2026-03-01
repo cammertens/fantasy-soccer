@@ -747,6 +747,69 @@
 
   .confirm-btn:hover { background: var(--green-light); }
 
+  .queued-badge {
+    font-size: 9px;
+    background: rgba(245,200,66,0.15);
+    border: 1px solid rgba(245,200,66,0.3);
+    color: var(--gold);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .queue-btn {
+    background: rgba(245,200,66,0.15);
+    color: var(--gold);
+    border: 1px solid rgba(245,200,66,0.3);
+    padding: 8px 16px;
+    border-radius: 5px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: background 0.15s;
+  }
+  .queue-btn:hover { background: rgba(245,200,66,0.25); }
+  .queue-btn-remove {
+    background: rgba(192,57,43,0.15);
+    color: #f87171;
+    border-color: rgba(192,57,43,0.3);
+  }
+  .queue-btn-remove:hover { background: rgba(192,57,43,0.25); }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 8px;
+  }
+  .queue-item-active {
+    background: rgba(245,200,66,0.08);
+    border-left: 3px solid var(--gold);
+  }
+  .queue-item-name { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+  .queue-item-meta { display: flex; gap: 6px; align-items: center; }
+  .queue-item-controls { display: flex; gap: 4px; flex-shrink: 0; }
+  .queue-ctrl-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--card-border);
+    color: var(--gray);
+    width: 22px; height: 22px;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .queue-ctrl-btn:hover { background: rgba(255,255,255,0.1); color: var(--white); }
+  .queue-ctrl-btn.queue-ctrl-remove:hover { background: rgba(192,57,43,0.2); color: #f87171; }
+
   .cancel-btn {
     background: transparent;
     color: var(--gray);
@@ -1003,15 +1066,14 @@
           <div class="pick-confirm-name" id="confirm-player-name"></div>
           <div class="pick-confirm-sub" id="confirm-player-sub"></div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="cancel-btn" onclick="clearSelection()">Cancel</button>
-          <button class="confirm-btn" onclick="confirmPick()">Draft</button>
-        </div>
+        <div id="confirm-bar-buttons" style="display:flex;gap:6px"></div>
       </div>
     </div>
-    <div class="draft-col">
-      <div class="draft-col-header">Draft Results</div>
-      <div class="draft-col-body" id="draft-results"></div>
+    <div class="draft-col" style="display:flex;flex-direction:column;">
+      <div class="draft-col-header">My Queue</div>
+      <div class="draft-col-body" id="queue-display" style="flex:0 0 auto;max-height:45%;border-bottom:1px solid var(--card-border);"></div>
+      <div class="draft-col-header" style="font-size:13px;">Draft Results</div>
+      <div class="draft-col-body" id="draft-results" style="flex:1;"></div>
     </div>
   </div>
 </div>
@@ -1127,6 +1189,7 @@ let state = {
   selectedPlayer: null,
   manualStats: [],
   draftOrder: [],
+  myQueue: [],
   isAdmin: false
 };
 
@@ -1309,6 +1372,7 @@ async function enterLeague() {
 
     // Load players (always fetch; server serves from Postgres, no API pull if pool exists)
     await loadPlayers();
+    await loadQueue();
 
     // Go to home
     showPage('home');
@@ -1347,6 +1411,19 @@ async function loadPlayers() {
   } finally {
     state.loadingPlayers = false;
   }
+}
+
+async function loadQueue() {
+  if (!state.managerId || !state.leagueId) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue?managerId=${encodeURIComponent(state.managerId)}`);
+    const data = await res.json();
+    if (res.ok) {
+      const raw = data.queue || [];
+      const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
+      state.myQueue = raw.filter(id => !draftedIds.has(String(id)));
+    }
+  } catch(e) {}
 }
 
 function mapPosition(pos) {
@@ -1572,6 +1649,7 @@ function renderDraft() {
   renderRoster();
   filterDraftPool();
   renderDraftResults();
+  renderQueue();
 }
 
 function renderRoster() {
@@ -1654,17 +1732,24 @@ function filterDraftPool() {
   const currentPick = snakePicks[picks.length];
   const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
 
-  container.innerHTML = available.map(p => `
+  container.innerHTML = available.map(p => {
+    const inQueue = state.myQueue.some(id => String(id) === String(p.id));
+    const queuedBadge = inQueue ? '<span class="queued-badge">✓ Queued</span>' : '';
+    return `
     <div class="pool-player ${state.selectedPlayer?.id === p.id ? 'selected' : ''} ${!isMyTurn ? 'not-your-turn' : ''}"
-         onclick="${isMyTurn ? `selectPlayer('${p.id}')` : ''}">
+         onclick="selectPlayer('${p.id}')">
       <div>
         <div class="pool-player-name">${p.name}</div>
         <div class="pool-player-meta">
           <span class="pool-player-country">${p.country}</span>
           <span class="pool-player-pos pos-${p.pos.toLowerCase()}">${p.pos}</span>
+          ${queuedBadge}
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  if (state.selectedPlayer) updateConfirmBarButtons();
 }
 
 function selectPlayer(id) {
@@ -1681,7 +1766,28 @@ function selectPlayer(id) {
   document.getElementById('confirm-player-sub').textContent =
     `${player.country} · ${player.pos} — Draft for ${currentPick?.managerName || '?'}?`;
 
+  updateConfirmBarButtons();
   filterDraftPool();
+}
+
+function updateConfirmBarButtons() {
+  const wrap = document.getElementById('confirm-bar-buttons');
+  if (!wrap || !state.selectedPlayer) return;
+  const league = state.league;
+  const snakePicks = generateSnakePicks(league?.draftOrder || [], ROSTER_SLOTS);
+  const currentPick = snakePicks[(league?.draftPicks || []).length];
+  const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
+  const isInQueue = state.myQueue.some(id => String(id) === String(state.selectedPlayer.id));
+  let html = `<button class="cancel-btn" onclick="clearSelection()">Cancel</button>`;
+  if (!isMyTurn) {
+    if (isInQueue) html += `<button class="queue-btn queue-btn-remove" onclick="removeFromQueue()">Remove from Queue</button>`;
+    else html += `<button class="queue-btn" onclick="addToQueue()">Add to Queue</button>`;
+  } else {
+    if (isInQueue) html += `<button class="queue-btn queue-btn-remove" onclick="removeFromQueue()">Remove from Queue</button>`;
+    else html += `<button class="queue-btn" onclick="addToQueue()">Add to Queue</button>`;
+    html += `<button class="confirm-btn" onclick="confirmPick()">Draft</button>`;
+  }
+  wrap.innerHTML = html;
 }
 
 function clearSelection() {
@@ -1724,6 +1830,125 @@ async function confirmPick() {
   } catch(e) {
     alert('Failed to submit pick. Please try again.');
   }
+}
+
+async function addToQueue() {
+  if (!state.selectedPlayer || !state.managerId) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: state.managerId, playerId: String(state.selectedPlayer.id) })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      state.myQueue = data.queue;
+      clearSelection();
+      filterDraftPool();
+      renderQueue();
+    }
+  } catch(e) { alert('Failed to add to queue.'); }
+}
+
+async function removeFromQueue() {
+  if (!state.selectedPlayer || !state.managerId) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue/${encodeURIComponent(state.selectedPlayer.id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: state.managerId })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      state.myQueue = data.queue;
+      clearSelection();
+      filterDraftPool();
+      renderQueue();
+    }
+  } catch(e) { alert('Failed to remove from queue.'); }
+}
+
+async function moveQueueItem(index, direction) {
+  const arr = [...state.myQueue];
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= arr.length) return;
+  [arr[index], arr[targetIndex]] = [arr[targetIndex], arr[index]];
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: state.managerId, queue: arr })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      state.myQueue = data.queue;
+      renderQueue();
+      filterDraftPool();
+    }
+  } catch(e) { alert('Failed to reorder queue.'); }
+}
+
+async function removeQueueItemDirect(playerId) {
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue/${encodeURIComponent(playerId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: state.managerId })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      state.myQueue = data.queue;
+      renderQueue();
+      filterDraftPool();
+    }
+  } catch(e) { alert('Failed to remove from queue.'); }
+}
+
+function renderQueue() {
+  const container = document.getElementById('queue-display');
+  if (!container) return;
+  if (!state.managerId) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">Queue not available in admin view</div>';
+    return;
+  }
+
+  const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
+  const activeQueue = state.myQueue.filter(id => !draftedIds.has(String(id)));
+
+  if (activeQueue.length !== state.myQueue.length) {
+    state.myQueue = activeQueue;
+  }
+
+  if (activeQueue.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">No players queued</div>';
+    return;
+  }
+
+  const snakePicks = generateSnakePicks(state.league?.draftOrder || [], ROSTER_SLOTS);
+  const currentPick = snakePicks[(state.league?.draftPicks || []).length];
+  const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
+  const topPlayerId = activeQueue[0];
+
+  container.innerHTML = activeQueue.map((playerId, i) => {
+    const player = getAllPlayers().find(p => String(p.id) === String(playerId));
+    if (!player) return '';
+    const isTop = i === 0 && isMyTurn;
+    return `
+      <div class="queue-item ${isTop ? 'queue-item-active' : ''}">
+        <div class="queue-item-info">
+          <div class="queue-item-name">${player.name}</div>
+          <div class="queue-item-meta">
+            <span class="pool-player-country">${player.country}</span>
+            <span class="pool-player-pos pos-${player.pos.toLowerCase()}">${player.pos}</span>
+          </div>
+        </div>
+        <div class="queue-item-controls">
+          ${i > 0 ? `<button class="queue-ctrl-btn" onclick="moveQueueItem(${i}, -1)">↑</button>` : ''}
+          ${i < activeQueue.length - 1 ? `<button class="queue-ctrl-btn" onclick="moveQueueItem(${i}, 1)">↓</button>` : ''}
+          <button class="queue-ctrl-btn queue-ctrl-remove" onclick="removeQueueItemDirect('${String(playerId).replace(/'/g, "\\'")}')">✕</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function renderDraftResults() {

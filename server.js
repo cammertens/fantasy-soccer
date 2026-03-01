@@ -59,6 +59,15 @@ async function initDB() {
         last_refreshed_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(league_api_id, season)
       );
+
+      CREATE TABLE IF NOT EXISTS draft_queues (
+        id SERIAL PRIMARY KEY,
+        league_id INTEGER REFERENCES leagues(id),
+        manager_id TEXT NOT NULL,
+        queue JSONB NOT NULL DEFAULT '[]',
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(league_id, manager_id)
+      );
     `);
     console.log('Database initialized');
   } catch(e) {
@@ -588,6 +597,93 @@ app.delete('/api/leagues/:id', async (req, res) => {
     await pool.query('DELETE FROM leagues WHERE id = $1', [req.params.id]);
 
     res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =============================================
+// DRAFT QUEUE
+// =============================================
+async function getQueueRow(leagueId, managerId) {
+  const res = await pool.query(
+    'SELECT queue FROM draft_queues WHERE league_id = $1 AND manager_id = $2',
+    [leagueId, managerId]
+  );
+  return res.rows.length > 0 ? (res.rows[0].queue || []) : [];
+}
+
+function upsertQueue(leagueId, managerId, queue) {
+  return pool.query(
+    `INSERT INTO draft_queues (league_id, manager_id, queue)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (league_id, manager_id) DO UPDATE SET queue = EXCLUDED.queue, updated_at = NOW()`,
+    [leagueId, managerId, JSON.stringify(queue)]
+  );
+}
+
+app.get('/api/leagues/:id/queue', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const managerId = req.query.managerId;
+    if (!managerId) return res.status(400).json({ error: 'Missing managerId' });
+    const queue = await getQueueRow(req.params.id, managerId);
+    res.json({ queue });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/leagues/:id/queue', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const { managerId, playerId } = req.body;
+    if (!managerId || playerId === undefined) return res.status(400).json({ error: 'Missing managerId or playerId' });
+    const pid = String(playerId);
+    let queue = await getQueueRow(req.params.id, managerId);
+    if (queue.some(id => String(id) === pid)) {
+      return res.json({ queue });
+    }
+    queue = [...queue, pid];
+    await upsertQueue(req.params.id, managerId, queue);
+    res.json({ queue });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/leagues/:id/queue/:playerId', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const managerId = req.body?.managerId;
+    if (!managerId) return res.status(400).json({ error: 'Missing managerId' });
+    const pid = String(req.params.playerId);
+    let queue = await getQueueRow(req.params.id, managerId);
+    queue = queue.filter(id => String(id) !== pid);
+    await upsertQueue(req.params.id, managerId, queue);
+    res.json({ queue });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/leagues/:id/queue', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const { managerId, queue: incoming } = req.body;
+    if (!managerId || !Array.isArray(incoming)) return res.status(400).json({ error: 'Missing managerId or queue' });
+    const existing = await getQueueRow(req.params.id, managerId);
+    const existingSet = new Set(existing.map(id => String(id)));
+    const incomingSet = new Set(incoming.map(id => String(id)));
+    if (existingSet.size !== incomingSet.size || [...incomingSet].some(id => !existingSet.has(id))) {
+      return res.status(400).json({ error: 'Queue must contain the same player IDs (reorder only)' });
+    }
+    await upsertQueue(req.params.id, managerId, incoming);
+    res.json({ queue: incoming });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
