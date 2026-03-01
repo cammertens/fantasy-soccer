@@ -594,6 +594,7 @@ app.delete('/api/leagues/:id', async (req, res) => {
     if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
 
     await pool.query('DELETE FROM league_slots WHERE league_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM draft_queues WHERE league_id = $1', [req.params.id]);
     await pool.query('DELETE FROM leagues WHERE id = $1', [req.params.id]);
 
     res.json({ success: true });
