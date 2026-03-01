@@ -834,6 +834,38 @@ app.delete('/api/leagues/:id/pick', async (req, res) => {
   }
 });
 
+app.post('/api/leagues/:id/swap-pick', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
+    const { outPlayerId, inPlayerId, managerId } = req.body;
+    if (!outPlayerId || !inPlayerId || !managerId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const picks = [...league.draftPicks];
+
+    const pickIndex = picks.findIndex(p => String(p.playerId) === String(outPlayerId) && p.managerId === managerId);
+    if (pickIndex === -1) return res.status(404).json({ error: 'Pick not found for this manager' });
+
+    const alreadyDrafted = picks.find(p => String(p.playerId) === String(inPlayerId));
+    if (alreadyDrafted) return res.status(400).json({ error: 'Replacement player already drafted' });
+
+    picks[pickIndex] = { ...picks[pickIndex], playerId: String(inPlayerId) };
+
+    await pool.query(
+      'UPDATE leagues SET draft_picks = $1 WHERE id = $2',
+      [JSON.stringify(picks), req.params.id]
+    );
+
+    res.json({ success: true, picks });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Add manual stat
 app.post('/api/leagues/:id/manual-stat', async (req, res) => {
   try {

@@ -1121,6 +1121,25 @@
       <div class="success-msg" id="draft-control-msg" style="margin-top:10px"></div>
     </div>
 
+    <div class="admin-card">
+      <div class="section-title">Roster Management</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Swap any player on any roster. Use for wrong picks or pre-scoring injury replacements. Roster compliance (7 field + 1 defense) is the commissioner's responsibility.</p>
+      <div class="form-group">
+        <label class="form-label">Select Manager</label>
+        <select class="form-select" id="swap-manager-select" onchange="renderSwapRoster()" style="font-size:13px"></select>
+      </div>
+      <div id="swap-roster-display" style="margin-top:12px"></div>
+      <div id="swap-replacement-panel" style="margin-top:12px;display:none">
+        <div class="form-label" style="margin-bottom:8px">Select Replacement Player</div>
+        <input class="form-input" id="swap-search" placeholder="Search available players..." oninput="filterSwapPool()" style="margin-bottom:8px">
+        <div id="swap-pool-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--card-border);border-radius:6px"></div>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="cancelSwap()">Cancel</button>
+        </div>
+      </div>
+      <div class="success-msg" id="swap-msg" style="margin-top:10px"></div>
+    </div>
+
     <!-- Manual Stats -->
     <div class="admin-card">
       <div class="section-title">Manual Stat Entry</div>
@@ -1190,6 +1209,7 @@ let state = {
   manualStats: [],
   draftOrder: [],
   myQueue: [],
+  swapOutPlayerId: null,
   isAdmin: false
 };
 
@@ -1711,7 +1731,7 @@ function filterDraftPool() {
   const picks = league ? league.draftPicks : [];
   const draftedIds = new Set(picks.map(p => String(p.playerId)));
 
-  const available = getAllPlayers().filter(p => {
+  let available = getAllPlayers().filter(p => {
     if (draftedIds.has(String(p.id))) return false;
     if (posFilter && p.pos !== posFilter) return false;
     if (countryFilter && p.country !== countryFilter) return false;
@@ -1719,17 +1739,51 @@ function filterDraftPool() {
     return true;
   });
 
+  // Roster compliance: only when draft in progress (currentPick exists)
+  const snakePicks = generateSnakePicks(league?.draftOrder || [], ROSTER_SLOTS);
+  const currentPick = snakePicks[picks.length];
+  let hideTeamForCompliance = false;
+  let onlyTeamForCompliance = false;
+
+  if (currentPick) {
+    const onClockManagerPicks = getAllPlayers().filter(p => p.draftedBy === currentPick.managerId);
+    const hasTeamDefense = onClockManagerPicks.some(p => p.pos === 'TEAM');
+    const picksRemaining = ROSTER_SLOTS - onClockManagerPicks.length;
+
+    if (hasTeamDefense) {
+      available = available.filter(p => p.pos !== 'TEAM');
+      hideTeamForCompliance = true;
+    }
+    if (picksRemaining === 1 && !hasTeamDefense) {
+      available = available.filter(p => p.pos === 'TEAM');
+      onlyTeamForCompliance = true;
+    }
+  }
+
+  // Update position filter dropdown to match compliance
+  const posSelect = document.getElementById('draft-pos-filter');
+  if (posSelect) {
+    const opts = Array.from(posSelect.options);
+    opts.forEach(opt => {
+      const v = opt.value;
+      if (v === 'TEAM') opt.disabled = hideTeamForCompliance;
+      else if (v && v !== '') opt.disabled = onlyTeamForCompliance;
+      else opt.disabled = false;
+    });
+    if (hideTeamForCompliance && posSelect.value === 'TEAM') posSelect.value = '';
+    if (onlyTeamForCompliance && posSelect.value && posSelect.value !== 'TEAM') posSelect.value = '';
+  }
+
   document.getElementById('available-count').textContent = available.length + ' left';
 
   const container = document.getElementById('draft-pool');
   if (available.length === 0) {
     container.innerHTML = '<div class="empty-state">No players match your filters</div>';
+    if (state.selectedPlayer) updateConfirmBarButtons();
     return;
   }
 
   // Determine if it's this manager's turn
-  const snakePicks = generateSnakePicks(league?.draftOrder || [], ROSTER_SLOTS);
-  const currentPick = snakePicks[picks.length];
   const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
 
   container.innerHTML = available.map(p => {
@@ -2013,6 +2067,14 @@ function setupAdminPage() {
   // Draft order
   renderDraftOrderAdmin();
   populateManualPlayerSelect();
+
+  const managers = league.managers || [];
+  const swapSel = document.getElementById('swap-manager-select');
+  if (swapSel) {
+    swapSel.innerHTML = '<option value="">Select a manager...</option>' +
+      managers.map(m => `<option value="${m.managerId}">${m.managerName} — ${m.teamName}</option>`).join('');
+    renderSwapRoster();
+  }
 }
 
 function renderDraftOrderAdmin() {
@@ -2134,6 +2196,101 @@ async function undoLastPick() {
       renderHome();
     }
   } catch(e) { alert('Failed to undo pick.'); }
+}
+
+function renderSwapRoster() {
+  const managerId = document.getElementById('swap-manager-select')?.value;
+  const container = document.getElementById('swap-roster-display');
+  if (!container) return;
+  if (!managerId || !state.league) { container.innerHTML = ''; return; }
+
+  const { offense, defense } = getManagerPlayers(managerId);
+  const allPicks = [...offense, ...(defense ? [defense] : [])];
+
+  if (allPicks.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:12px">No players drafted yet</div>';
+    return;
+  }
+
+  container.innerHTML = allPicks.map(p => `
+    <div style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:8px 14px;background:rgba(0,0,0,0.2);border:1px solid var(--card-border);border-radius:6px;margin-bottom:6px">
+      <div>
+        <div style="font-size:13px;font-weight:500">${p.name}</div>
+        <div style="font-size:11px;color:var(--gray)">${p.country} · ${p.pos} · Round ${p.draftRound}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="initiateSwap('${String(p.id).replace(/'/g, "\\'")}')">Swap Out</button>
+    </div>`).join('');
+}
+
+function initiateSwap(playerId) {
+  state.swapOutPlayerId = playerId;
+  const panel = document.getElementById('swap-replacement-panel');
+  if (panel) panel.style.display = 'block';
+  filterSwapPool();
+}
+
+function filterSwapPool() {
+  const search = document.getElementById('swap-search')?.value.toLowerCase() || '';
+  const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
+  draftedIds.delete(String(state.swapOutPlayerId));
+
+  const available = getAllPlayers().filter(p => {
+    if (draftedIds.has(String(p.id))) return false;
+    if (search && !p.name.toLowerCase().includes(search) && !p.country.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const container = document.getElementById('swap-pool-list');
+  if (!container) return;
+  container.innerHTML = available.map(p => `
+    <div onclick="confirmSwap('${String(p.id).replace(/'/g, "\\'")}')"
+         style="padding:8px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s"
+         onmouseover="this.style.background='rgba(26,122,60,0.15)'"
+         onmouseout="this.style.background=''">
+      <div style="font-size:13px;font-weight:500">${p.name}</div>
+      <div style="font-size:11px;color:var(--gray)">${p.country} · ${p.pos}</div>
+    </div>`).join('');
+}
+
+async function confirmSwap(replacementPlayerId) {
+  if (!state.swapOutPlayerId || !state.adminToken) return;
+  const managerId = document.getElementById('swap-manager-select')?.value;
+  if (!managerId) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/swap-pick`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.adminToken },
+      body: JSON.stringify({
+        outPlayerId: String(state.swapOutPlayerId),
+        inPlayerId: String(replacementPlayerId),
+        managerId
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error || 'Swap failed.');
+
+    const pick = state.league.draftPicks.find(p => String(p.playerId) === String(state.swapOutPlayerId));
+    if (pick) pick.playerId = String(replacementPlayerId);
+
+    applyDraftPicks();
+    renderSwapRoster();
+    cancelSwap();
+    renderDraft();
+    renderHome();
+    showMsg('swap-msg', 'Player swapped successfully.');
+  } catch(e) {
+    alert('Swap failed: ' + e.message);
+  }
+}
+
+function cancelSwap() {
+  state.swapOutPlayerId = null;
+  const panel = document.getElementById('swap-replacement-panel');
+  if (panel) panel.style.display = 'none';
+  const searchEl = document.getElementById('swap-search');
+  if (searchEl) searchEl.value = '';
+  const listEl = document.getElementById('swap-pool-list');
+  if (listEl) listEl.innerHTML = '';
 }
 
 function populateManualPlayerSelect() {
