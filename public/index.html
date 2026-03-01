@@ -1934,7 +1934,7 @@ function renderQueue() {
     if (!player) return '';
     const isTop = i === 0 && isMyTurn;
     return `
-      <div class="queue-item ${isTop ? 'queue-item-active' : ''}">
+      <div class="queue-item ${isTop ? 'queue-item-active' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
         <div class="queue-item-info">
           <div class="queue-item-name">${player.name}</div>
           <div class="queue-item-meta">
@@ -1942,7 +1942,7 @@ function renderQueue() {
             <span class="pool-player-pos pos-${player.pos.toLowerCase()}">${player.pos}</span>
           </div>
         </div>
-        <div class="queue-item-controls">
+        <div class="queue-item-controls" onclick="event.stopPropagation()">
           ${i > 0 ? `<button class="queue-ctrl-btn" onclick="moveQueueItem(${i}, -1)">↑</button>` : ''}
           ${i < activeQueue.length - 1 ? `<button class="queue-ctrl-btn" onclick="moveQueueItem(${i}, 1)">↓</button>` : ''}
           <button class="queue-ctrl-btn queue-ctrl-remove" onclick="removeQueueItemDirect('${String(playerId).replace(/'/g, "\\'")}')">✕</button>
