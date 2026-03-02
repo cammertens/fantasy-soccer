@@ -1074,9 +1074,11 @@
     .invite-link-row > div:last-child { grid-column: 1 / -1; display: flex; gap: 6px; }
   }
 
-  /* Hide mobile nav on desktop */
-  #mobile-bottom-nav { display: none; }
-  #mobile-draft-subtabs { display: none; }
+  /* Hide mobile nav only on desktop (so mobile can show it) */
+  @media (min-width: 769px) {
+    #mobile-bottom-nav { display: none !important; }
+    #mobile-draft-subtabs { display: none !important; }
+  }
 </style>
 </head>
 <body>
