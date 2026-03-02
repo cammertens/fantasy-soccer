@@ -217,23 +217,13 @@
     transition: all 0.2s;
   }
 
-  .btn-primary {
-    background: var(--green);
-    color: var(--white);
-  }
+  .btn-primary { background: var(--green); color: var(--white); }
   .btn-primary:hover { background: var(--green-light); }
 
-  .btn-gold {
-    background: var(--gold);
-    color: var(--dark);
-  }
+  .btn-gold { background: var(--gold); color: var(--dark); }
   .btn-gold:hover { background: var(--gold-dim); }
 
-  .btn-sm {
-    width: auto;
-    padding: 8px 16px;
-    font-size: 12px;
-  }
+  .btn-sm { width: auto; padding: 8px 16px; font-size: 12px; }
 
   .btn-outline {
     background: transparent;
@@ -336,15 +326,8 @@
     white-space: nowrap;
   }
 
-  .status-waiting {
-    background: rgba(138,138,130,0.2);
-    color: var(--gray);
-  }
-
-  .status-joined {
-    background: rgba(26,122,60,0.2);
-    color: #4ade80;
-  }
+  .status-waiting { background: rgba(138,138,130,0.2); color: var(--gray); }
+  .status-joined { background: rgba(26,122,60,0.2); color: #4ade80; }
 
   .draft-order-list {
     display: flex;
@@ -364,13 +347,7 @@
     gap: 10px;
   }
 
-  .order-num {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--gold);
-    font-weight: 600;
-  }
-
+  .order-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--gold); font-weight: 600; }
   .order-name { font-size: 13px; font-weight: 500; }
 
   /* ===== HOME PAGE ===== */
@@ -701,7 +678,6 @@
 
   .pool-player-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
   .pool-player-meta { display: flex; gap: 8px; align-items: center; }
-
   .pool-player-country { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; color: var(--gray); }
 
   .pool-player-pos {
@@ -789,10 +765,7 @@
     border-bottom: 1px solid rgba(255,255,255,0.04);
     gap: 8px;
   }
-  .queue-item-active {
-    background: rgba(245,200,66,0.08);
-    border-left: 3px solid var(--gold);
-  }
+  .queue-item-active { background: rgba(245,200,66,0.08); border-left: 3px solid var(--gold); }
   .queue-item-name { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
   .queue-item-meta { display: flex; gap: 6px; align-items: center; }
   .queue-item-controls { display: flex; gap: 4px; flex-shrink: 0; }
@@ -893,16 +866,217 @@
   .mc-6 { border-left-color: #1a5a5a !important; background: linear-gradient(90deg, rgba(26,90,90,0.15), transparent) !important; }
   .mc-7 { border-left-color: #5a1a6a !important; background: linear-gradient(90deg, rgba(90,26,106,0.15), transparent) !important; }
 
-  /* Mobile */
+  /* ============================================
+     MOBILE STYLES — max-width: 768px
+     Desktop layout completely untouched above
+     ============================================ */
   @media (max-width: 768px) {
-    .home-layout { grid-template-columns: 1fr; padding: 10px; }
-    .standings-sidebar { position: static; order: -1; }
-    .draft-body { grid-template-columns: 1fr; height: auto; }
-    .draft-col { border-right: none; border-bottom: 1px solid var(--card-border); max-height: 400px; }
-    .nav-tab { padding: 0 10px; font-size: 11px; }
-    .manual-stat-form { grid-template-columns: 1fr 1fr; }
+
+    /* Hide desktop top nav tabs on mobile — logo only */
+    .nav-tabs { display: none; }
+    .nav-right { display: none; }
+    nav { padding: 0 16px; justify-content: center; }
+    .nav-logo { font-size: 20px; }
+
+    /* Pages need bottom padding so content clears the fixed bottom nav */
+    .page.active { padding-bottom: 64px; }
+
+    /* ---- BOTTOM NAV ---- */
+    #mobile-bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 200;
+      background: var(--dark);
+      border-top: 2px solid var(--green);
+      height: 56px;
+    }
+
+    .mobile-nav-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--gray);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transition: color 0.2s;
+      border-top: 3px solid transparent;
+      padding-top: 3px;
+    }
+
+    .mobile-nav-btn.active { color: var(--gold); border-top-color: var(--gold); }
+    .mobile-nav-btn:hover { color: var(--white); }
+
+    .mobile-nav-icon { font-size: 18px; line-height: 1; }
+
+    /* ---- LANDING ---- */
+    .landing { min-height: calc(100vh - 56px - 56px); padding: 16px; align-items: flex-start; padding-top: 24px; }
     .landing-card { padding: 24px; }
+    .landing-logo { font-size: 36px; }
+
+    /* ---- HOME / STANDINGS PAGE ---- */
+    .home-layout {
+      grid-template-columns: 1fr;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    .standings-sidebar { position: static; order: -1; }
+
+    /* Compact standings table for mobile */
+    .standings-row { font-size: 12px; padding: 8px 12px; }
+
+    /* Manager blocks: show only name, country, pos, total — no stage columns */
+    .col-header { display: none; }
+    .player-row {
+      grid-template-columns: 1fr auto auto !important;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+
+    /* Hide all stage score columns on mobile — they overflow and aren't readable */
+    .md-cell { display: none; }
+
+    /* Show player name, country, total only */
+    .player-name { font-size: 12px; }
+    .player-country { font-size: 10px; }
+    .total-cell { font-size: 12px; padding: 2px 6px; }
+
+    /* ---- DRAFT PAGE ---- */
+
+    /* On-clock banner: slimmer on mobile */
+    .on-clock-banner {
+      margin: 8px 10px 0;
+      padding: 8px 12px;
+      font-size: 12px;
+      border-radius: 5px;
+    }
+
+    .clock-text { font-size: 12px; }
+
+    /* Sticky draft persistent header: snake + clock */
+    .draft-header-bar {
+      padding: 8px 10px;
+      top: 56px;
+    }
+
+    .draft-header-title { font-size: 11px; margin-bottom: 6px; }
+
+    .snake-pick { min-width: 90px; padding: 4px 8px; }
+    .snake-pick-manager { font-size: 10px; }
+
+    /* Hide desktop 3-col layout */
+    .draft-body {
+      display: block;
+      height: auto;
+      overflow: visible;
+    }
+
+    .draft-col {
+      border-right: none;
+      border-bottom: none;
+      max-height: none;
+      overflow: visible;
+      display: none; /* hidden by default; shown by mobile sub-tab logic */
+    }
+
+    /* Mobile sub-tab bar — sits just above bottom nav */
+    #mobile-draft-subtabs {
+      display: flex;
+      position: fixed;
+      bottom: 56px; /* above bottom nav */
+      left: 0;
+      right: 0;
+      z-index: 190;
+      background: #0e1210;
+      border-top: 1px solid var(--card-border);
+      height: 42px;
+    }
+
+    .mobile-subtab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--gray);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-top: 2px solid transparent;
+      transition: color 0.15s;
+    }
+
+    .mobile-subtab-btn.active { color: var(--gold); border-top-color: var(--gold); }
+
+    /* Draft page content area needs extra bottom padding for both bars */
+    #page-draft { padding-bottom: calc(56px + 42px + 8px) !important; }
+
+    /* Confirm bar fixed above sub-tabs */
+    #confirm-bar {
+      position: fixed;
+      bottom: 98px; /* 56 bottom nav + 42 sub-tabs */
+      left: 0;
+      right: 0;
+      z-index: 185;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      border-top: 1px solid rgba(245,200,66,0.3);
+    }
+
+    /* When confirm bar visible, add extra padding so content isn't hidden behind it */
+    #page-draft.confirm-bar-visible { padding-bottom: calc(56px + 42px + 60px) !important; }
+
+    /* Mobile: draft col shown when active */
+    .draft-col.mobile-active {
+      display: flex;
+      flex-direction: column;
+      min-height: 60vh;
+    }
+
+    /* Pool col needs scrollable body */
+    .draft-col.mobile-active .draft-col-body {
+      overflow-y: auto;
+      max-height: 70vh;
+    }
+
+    /* Queue col */
+    #queue-display {
+      max-height: none !important;
+      border-bottom: none !important;
+    }
+
+    /* Results col — no separate header needed, col-header handles it */
+    #draft-results { flex: 1; }
+
+    /* Make confirm bar buttons stack nicely on small screens */
+    #confirm-bar-buttons { flex-wrap: wrap; gap: 4px; }
+    .confirm-btn, .queue-btn { padding: 7px 12px; font-size: 11px; }
+
+    /* Admin page */
+    .admin-setup { padding: 12px; }
+    .admin-card { padding: 16px; }
+    .manual-stat-form { grid-template-columns: 1fr 1fr; }
+    .invite-link-row { grid-template-columns: 60px 1fr; }
+    .invite-link-row > div:last-child { grid-column: 1 / -1; display: flex; gap: 6px; }
   }
+
+  /* Hide mobile nav on desktop */
+  #mobile-bottom-nav { display: none; }
+  #mobile-draft-subtabs { display: none; }
 </style>
 </head>
 <body>
@@ -920,6 +1094,17 @@
   </div>
 </nav>
 
+<!-- MOBILE BOTTOM NAV (injected by JS after login so admin tab only shows for admin) -->
+<div id="mobile-bottom-nav"></div>
+
+<!-- MOBILE DRAFT SUB-TABS -->
+<div id="mobile-draft-subtabs" style="display:none">
+  <button class="mobile-subtab-btn active" onclick="showDraftSubtab('players', this)">Players</button>
+  <button class="mobile-subtab-btn" onclick="showDraftSubtab('queue', this)">Queue</button>
+  <button class="mobile-subtab-btn" onclick="showDraftSubtab('results', this)">Results</button>
+  <button class="mobile-subtab-btn" onclick="showDraftSubtab('teams', this)">Teams</button>
+</div>
+
 <div class="error-msg" id="global-error" style="display:none;max-width:1100px;margin:10px auto 0 auto"></div>
 
 <!-- ===== LANDING PAGE ===== -->
@@ -931,7 +1116,6 @@
 
       <hr class="landing-divider">
 
-      <!-- Admin: Create League -->
       <div class="section-title">Create a League</div>
       <div class="form-group">
         <label class="form-label">League Name</label>
@@ -969,7 +1153,6 @@
         <hr class="landing-divider">
       </div>
 
-      <!-- Join or rejoin -->
       <div class="section-title">Join or Rejoin</div>
       <div class="form-group">
         <label class="form-label">Your Invite / Admin Link</label>
@@ -981,7 +1164,7 @@
   </div>
 </div>
 
-<!-- ===== JOIN PAGE (manager setup) ===== -->
+<!-- ===== JOIN PAGE ===== -->
 <div id="page-join" class="page">
   <div class="landing">
     <div class="landing-card">
@@ -1030,14 +1213,16 @@
     <div class="draft-snake-scroll" id="snake-scroll"></div>
   </div>
   <div class="draft-body">
-    <div class="draft-col">
+    <!-- Col 1: Team Roster -->
+    <div class="draft-col" id="draft-col-teams">
       <div class="draft-col-header">Team Roster</div>
       <div class="team-selector">
         <select id="roster-selector" onchange="renderRoster()"></select>
       </div>
       <div class="draft-col-body" id="roster-display"></div>
     </div>
-    <div class="draft-col">
+    <!-- Col 2: Available Players -->
+    <div class="draft-col" id="draft-col-players">
       <div class="draft-col-header">
         Available Players
         <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gray)" id="available-count"></span>
@@ -1069,7 +1254,8 @@
         <div id="confirm-bar-buttons" style="display:flex;gap:6px"></div>
       </div>
     </div>
-    <div class="draft-col" style="display:flex;flex-direction:column;">
+    <!-- Col 3: Queue + Results -->
+    <div class="draft-col" id="draft-col-queue" style="display:flex;flex-direction:column;">
       <div class="draft-col-header">My Queue</div>
       <div class="draft-col-body" id="queue-display" style="flex:0 0 auto;max-height:45%;border-bottom:1px solid var(--card-border);"></div>
       <div class="draft-col-header" style="font-size:13px;">Draft Results</div>
@@ -1084,14 +1270,12 @@
     <div class="admin-page-title">Admin Panel</div>
     <div class="admin-page-sub" id="admin-league-info"></div>
 
-    <!-- Invite Links -->
     <div class="admin-card">
       <div class="section-title">Invite Links</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:4px">Send these links to your managers. Each link is unique to one slot.</p>
       <div class="invite-links-grid" id="invite-links-grid"></div>
     </div>
 
-    <!-- Draft Order -->
     <div class="admin-card">
       <div class="section-title">Draft Order</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Set the Round 1 order. Snake draft reverses each round automatically.</p>
@@ -1102,7 +1286,6 @@
       </div>
     </div>
 
-    <!-- Player Pool -->
     <div class="admin-card">
       <div class="section-title">Player Pool</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Re-pull squads from the API to add new players (e.g. transfers). Existing players are never removed.</p>
@@ -1110,7 +1293,6 @@
       <div class="success-msg" id="player-pool-msg" style="margin-top:10px"></div>
     </div>
 
-    <!-- Draft Controls -->
     <div class="admin-card">
       <div class="section-title">Draft Controls</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -1123,7 +1305,7 @@
 
     <div class="admin-card">
       <div class="section-title">Roster Management</div>
-      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Swap any player on any roster. Use for wrong picks or pre-scoring injury replacements. Roster compliance (7 field + 1 defense) is the commissioner's responsibility.</p>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Swap any player on any roster. Use for wrong picks or pre-scoring injury replacements.</p>
       <div class="form-group">
         <label class="form-label">Select Manager</label>
         <select class="form-select" id="swap-manager-select" onchange="renderSwapRoster()" style="font-size:13px"></select>
@@ -1140,7 +1322,6 @@
       <div class="success-msg" id="swap-msg" style="margin-top:10px"></div>
     </div>
 
-    <!-- Manual Stats -->
     <div class="admin-card">
       <div class="section-title">Manual Stat Entry</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:4px">Add penalty drawn events or correct any stat.</p>
@@ -1173,7 +1354,6 @@
       <div style="margin-top:12px" id="manual-stat-log"></div>
     </div>
 
-    <!-- Admin token display -->
     <div class="admin-card" style="border-color:rgba(245,200,66,0.2)">
       <div class="section-title">Your Admin Link</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:8px">Save this — it's how you get back to this admin panel.</p>
@@ -1192,7 +1372,7 @@
 <script>
 const API = window.location.origin;
 const STAGES = ['GS1','GS2','GS3','R32','R16','QF','SF','F'];
-const ROSTER_SLOTS = 8; // 7 offense + 1 defense
+const ROSTER_SLOTS = 8;
 
 // =============================================
 // APP STATE
@@ -1213,7 +1393,6 @@ let state = {
   isAdmin: false
 };
 
-// Load from localStorage
 function loadState() {
   try {
     localStorage.removeItem('fantasyLeagueState');
@@ -1223,13 +1402,108 @@ function loadState() {
 }
 
 function saveState() {
-    localStorage.setItem('fsl_state', JSON.stringify({
+  localStorage.setItem('fsl_state', JSON.stringify({
     leagueId: state.leagueId,
     adminToken: state.adminToken,
     managerId: state.managerId,
     managerName: state.managerName,
     isAdmin: state.isAdmin
   }));
+}
+
+// =============================================
+// MOBILE NAV
+// =============================================
+function isMobile() {
+  return window.innerWidth <= 768;
+}
+
+function buildMobileNav() {
+  const nav = document.getElementById('mobile-bottom-nav');
+  if (!isMobile() || !state.leagueId) { nav.innerHTML = ''; return; }
+
+  const adminTab = state.isAdmin
+    ? `<button class="mobile-nav-btn" id="mnav-admin" onclick="mobileShowPage('admin', this)">
+         <span class="mobile-nav-icon">⚙</span>Admin
+       </button>`
+    : '';
+
+  nav.innerHTML = `
+    <button class="mobile-nav-btn" id="mnav-home" onclick="mobileShowPage('home', this)">
+      <span class="mobile-nav-icon">🏆</span>Standings
+    </button>
+    <button class="mobile-nav-btn" id="mnav-draft" onclick="mobileShowPage('draft', this)">
+      <span class="mobile-nav-icon">⚽</span>Draft
+    </button>
+    ${adminTab}
+  `;
+}
+
+function mobileShowPage(name, btnEl) {
+  // Update desktop nav too for consistency
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+
+  document.getElementById('page-' + name).classList.add('active');
+  if (btnEl) btnEl.classList.add('active');
+
+  // Sync desktop tab active state
+  const desktopTabMap = { home: 'tab-home', draft: 'tab-draft', admin: 'tab-admin' };
+  const desktopTab = document.getElementById(desktopTabMap[name]);
+  if (desktopTab) desktopTab.classList.add('active');
+
+  // Show/hide draft sub-tabs
+  const subtabs = document.getElementById('mobile-draft-subtabs');
+  if (name === 'draft') {
+    subtabs.style.display = 'flex';
+    // Default to players tab
+    showDraftSubtab('players', subtabs.querySelector('.mobile-subtab-btn'));
+  } else {
+    subtabs.style.display = 'none';
+  }
+
+  if (name === 'draft') renderDraft();
+  if (name === 'home') renderHome();
+  if (name === 'admin') setupAdminPage();
+}
+
+function showDraftSubtab(tab, btnEl) {
+  // Hide all draft cols on mobile
+  ['draft-col-players', 'draft-col-queue', 'draft-col-teams'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('mobile-active');
+  });
+
+  // Deactivate all sub-tab buttons
+  document.querySelectorAll('.mobile-subtab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+
+  if (tab === 'players') {
+    document.getElementById('draft-col-players').classList.add('mobile-active');
+  } else if (tab === 'queue') {
+    // Queue and results are in the same col
+    document.getElementById('draft-col-queue').classList.add('mobile-active');
+    // Scroll to top of queue
+    const qd = document.getElementById('queue-display');
+    if (qd) qd.scrollTop = 0;
+  } else if (tab === 'results') {
+    document.getElementById('draft-col-queue').classList.add('mobile-active');
+    // Scroll to results section
+    setTimeout(() => {
+      const dr = document.getElementById('draft-results');
+      if (dr) dr.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+  } else if (tab === 'teams') {
+    document.getElementById('draft-col-teams').classList.add('mobile-active');
+  }
+}
+
+// Track confirm bar visibility for mobile padding
+function updateConfirmBarVisibility(visible) {
+  const page = document.getElementById('page-draft');
+  if (visible) page.classList.add('confirm-bar-visible');
+  else page.classList.remove('confirm-bar-visible');
 }
 
 // =============================================
@@ -1249,7 +1523,6 @@ async function createLeague() {
   };
 
   showError('create-error', '');
-
   if (!name) return showError('create-error', 'Please enter a league name.');
 
   try {
@@ -1271,8 +1544,7 @@ async function createLeague() {
     leagues.push({ leagueId: String(data.leagueId), adminToken: data.adminToken, name, managerId: data.adminManagerId });
     localStorage.setItem('fsl_leagues', JSON.stringify(leagues));
 
-    saveState();  
-
+    saveState();
     showSuccess('create-success', `League created! Loading admin panel...`);
     setTimeout(() => enterLeague(), 1000);
   } catch(e) {
@@ -1284,16 +1556,13 @@ async function joinWithToken() {
   const input = document.getElementById('join-token').value.trim();
   showError('join-error', '');
 
-  // Extract token from URL or use directly
   let token = input;
   if (input.includes('token=')) {
     token = new URL(input).searchParams.get('token');
   } else if (input.includes('admin=')) {
     token = new URL(input).searchParams.get('admin');
-    // This is an admin rejoin
   }
 
-  // Check URL params first
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get('token') || params.get('admin') || token;
   const urlLeague = params.get('league') || state.leagueId;
@@ -1306,9 +1575,7 @@ async function joinWithToken() {
     const res = await fetch(`${API}/api/leagues/${urlLeague}/admin`, {
       headers: { 'x-admin-token': urlToken }
     });
-
     if (res.ok) {
-      // This is an admin token
       state.adminToken = urlToken;
       state.isAdmin = true;
       saveState();
@@ -1317,7 +1584,6 @@ async function joinWithToken() {
     }
   } catch(e) {}
 
-  // Try as manager invite: resolve token (already joined → re-enter; else show setup)
   try {
     const slotRes = await fetch(`${API}/api/leagues/${urlLeague}/slot-by-token?token=${encodeURIComponent(urlToken)}`);
     const slotData = await slotRes.json().catch(() => ({}));
@@ -1349,7 +1615,6 @@ async function completeJoin() {
   const managerName = document.getElementById('setup-manager-name').value.trim();
   const teamName = document.getElementById('setup-team-name').value.trim();
   showError('setup-error', '');
-
   if (!managerName || !teamName) return showError('setup-error', 'Please fill in both fields.');
 
   try {
@@ -1381,22 +1646,25 @@ async function enterLeague() {
     if (!leagueRes.ok) return;
     state.league = await leagueRes.json();
 
-    // Update nav
     document.getElementById('nav-league-name').textContent = state.league.name;
     if (state.isAdmin) document.getElementById('nav-admin-badge').style.display = 'inline';
 
-    // Show tabs
     document.getElementById('tab-home').classList.remove('hidden');
     document.getElementById('tab-draft').classList.remove('hidden');
     if (state.isAdmin) document.getElementById('tab-admin').classList.remove('hidden');
 
-    // Load players (always fetch; server serves from Postgres, no API pull if pool exists)
     await loadPlayers();
     await loadQueue();
 
-    // Go to home
-    showPage('home');
-    document.getElementById('tab-home').classList.add('active');
+    // Build mobile nav (admin tab only if admin)
+    buildMobileNav();
+
+    if (isMobile()) {
+      mobileShowPage('home', document.getElementById('mnav-home'));
+    } else {
+      showPage('home');
+      document.getElementById('tab-home').classList.add('active');
+    }
     renderHome();
 
     if (state.isAdmin) setupAdminPage();
@@ -1423,11 +1691,9 @@ async function loadPlayers() {
     applyDraftPicks();
     populateCountryFilters();
     populateManualPlayerSelect();
-    console.log('Players loaded:', state.players.length, 'teams:', state.teams.length);
   } catch(e) {
     console.error('Failed to load players', e);
     showError('global-error', `Failed to load players: ${e.message}`);
-    // Leave any existing in-memory state.players/teams as-is on error
   } finally {
     state.loadingPlayers = false;
   }
@@ -1459,10 +1725,7 @@ function mapPosition(pos) {
 function applyDraftPicks() {
   if (!state.league) return;
   const allPlayers = [...state.players, ...state.teams];
-
-  // Reset
   allPlayers.forEach(p => { p.draftedBy = null; p.draftRound = null; p.draftOverall = null; });
-
   state.league.draftPicks.forEach(pick => {
     const player = allPlayers.find(p => String(p.id) === String(pick.playerId));
     if (player) {
@@ -1473,16 +1736,13 @@ function applyDraftPicks() {
   });
 }
 
-function getAllPlayers() {
-  return [...state.players, ...state.teams];
-}
+function getAllPlayers() { return [...state.players, ...state.teams]; }
 
 // =============================================
 // SCORING
 // =============================================
 function getPlayerTotal(player) {
   let total = Object.values(player.scores || {}).reduce((a,b) => a+b, 0);
-  // Add manual stats
   const manual = state.manualStats.filter(s => String(s.playerId) === String(player.id));
   manual.forEach(s => { total += s.value; });
   return total;
@@ -1520,7 +1780,6 @@ function renderHome() {
   if (!state.league) return;
   const managers = state.league.managers || [];
 
-  // Standings
   const sorted = [...managers].sort((a,b) => getManagerTotal(b.managerId) - getManagerTotal(a.managerId));
   const standingsList = document.getElementById('standings-list');
   standingsList.innerHTML = '';
@@ -1544,48 +1803,58 @@ function renderHome() {
       <div class="standings-pts">${undraftedPts}</div>
     </div>`;
 
-  // Manager blocks
   const col = document.getElementById('managers-column');
   col.innerHTML = '';
 
-  const stageHeaders = STAGES.map(s=>`<span>${s}</span>`).join('');
-  const gridCols = `180px 60px ${STAGES.map(()=>'42px').join(' ')} 70px`;
+  const mobile = isMobile();
+  // On mobile: show player name, country, total only (no stage columns)
+  const stageHeaders = mobile ? '' : STAGES.map(s=>`<span>${s}</span>`).join('');
+  const gridCols = mobile
+    ? '1fr 40px 50px'
+    : `180px 60px ${STAGES.map(()=>'42px').join(' ')} 70px`;
 
   managers.forEach((m, mi) => {
     const { offense, defense } = getManagerPlayers(m.managerId);
     const total = getManagerTotal(m.managerId);
 
     const playerRows = offense.map(p => {
-      const cells = STAGES.map(s => {
+      const stageCells = mobile ? '' : STAGES.map(s => {
         const v = p.scores[s];
         return `<span class="md-cell ${v !== undefined ? scoreClass(v) : ''}">${v !== undefined ? formatScore(v) : ''}</span>`;
       }).join('');
       return `<div class="player-row" style="grid-template-columns:${gridCols}">
         <span class="player-name">${p.name}</span>
         <span class="player-country">${p.country}</span>
-        ${cells}
+        ${stageCells}
         <span class="total-cell">${getPlayerTotal(p)}</span>
       </div>`;
     }).join('');
 
     let defRow = '';
     if (defense) {
-      const cells = STAGES.map(s => {
+      const stageCells = mobile ? '' : STAGES.map(s => {
         const v = defense.scores[s];
         return `<span class="md-cell ${v !== undefined ? scoreClass(v) : ''}">${v !== undefined ? formatScore(v) : ''}</span>`;
       }).join('');
       defRow = `<div class="player-row defense-row" style="grid-template-columns:${gridCols}">
         <span class="player-name">${defense.name}</span>
         <span class="player-country">${defense.country}</span>
-        ${cells}
+        ${stageCells}
         <span class="total-cell">${getPlayerTotal(defense)}</span>
       </div>`;
     } else {
       defRow = `<div class="player-row defense-row" style="grid-template-columns:${gridCols}">
         <span class="player-name" style="color:var(--gray);font-style:italic">No defense drafted</span>
-        <span></span>${STAGES.map(()=>'<span></span>').join('')}<span></span>
+        <span></span>${mobile ? '<span></span>' : STAGES.map(()=>'<span></span>').join('')}<span></span>
       </div>`;
     }
+
+    const colHeader = mobile ? '' : `
+      <div class="col-header" style="grid-template-columns:${gridCols}">
+        <span>Player</span><span style="font-size:10px;color:var(--gray)">Ctry</span>
+        ${stageHeaders}
+        <span style="text-align:right">Total</span>
+      </div>`;
 
     col.innerHTML += `
       <div class="manager-block">
@@ -1593,11 +1862,7 @@ function renderHome() {
           <span class="manager-name-cell">${m.managerName}</span>
           <span class="manager-team-cell">— ${m.teamName || ''}</span>
         </div>
-        <div class="col-header" style="grid-template-columns:${gridCols}">
-          <span>Player</span><span style="font-size:10px;color:var(--gray)">Ctry</span>
-          ${stageHeaders}
-          <span style="text-align:right">Total</span>
-        </div>
+        ${colHeader}
         ${playerRows}
         ${defRow}
         <div class="manager-total-row">
@@ -1624,7 +1889,6 @@ function renderDraft() {
   const snakePicks = generateSnakePicks(draftOrder, rounds);
   const currentPick = snakePicks[picks.length] || null;
 
-  // On clock banner
   if (currentPick) {
     document.getElementById('on-clock-name').textContent = currentPick.managerName;
     document.getElementById('on-clock-round').textContent = currentPick.round;
@@ -1634,7 +1898,6 @@ function renderDraft() {
     document.getElementById('clock-banner').style.display = 'none';
   }
 
-  // Snake scroll
   const scroll = document.getElementById('snake-scroll');
   scroll.innerHTML = '';
   snakePicks.forEach((p, i) => {
@@ -1655,12 +1918,9 @@ function renderDraft() {
     if (cur) cur.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
   }, 100);
 
-  // Roster selector
   const sel = document.getElementById('roster-selector');
   const managers = league.managers || [];
   sel.innerHTML = managers.map(m => `<option value="${m.managerId}">${m.managerName} — ${m.teamName}</option>`).join('');
-
-  // Default to current manager's team
   if (state.managerId) {
     const myManager = managers.find(m => m.managerId === state.managerId);
     if (myManager) sel.value = state.managerId;
@@ -1670,6 +1930,13 @@ function renderDraft() {
   filterDraftPool();
   renderDraftResults();
   renderQueue();
+
+  // On mobile, ensure the players sub-tab is shown by default when we navigate to draft
+  if (isMobile()) {
+    const activeSub = document.querySelector('.mobile-subtab-btn.active');
+    const activeTab = activeSub ? activeSub.textContent.trim().toLowerCase() : 'players';
+    showDraftSubtab(activeTab === 'results' ? 'results' : activeTab, activeSub);
+  }
 }
 
 function renderRoster() {
@@ -1739,7 +2006,6 @@ function filterDraftPool() {
     return true;
   });
 
-  // Roster compliance: only when draft in progress (currentPick exists)
   const snakePicks = generateSnakePicks(league?.draftOrder || [], ROSTER_SLOTS);
   const currentPick = snakePicks[picks.length];
   let hideTeamForCompliance = false;
@@ -1760,7 +2026,6 @@ function filterDraftPool() {
     }
   }
 
-  // Update position filter dropdown to match compliance
   const posSelect = document.getElementById('draft-pos-filter');
   if (posSelect) {
     const opts = Array.from(posSelect.options);
@@ -1783,7 +2048,6 @@ function filterDraftPool() {
     return;
   }
 
-  // Determine if it's this manager's turn
   const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
 
   container.innerHTML = available.map(p => {
@@ -1812,6 +2076,7 @@ function selectPlayer(id) {
   state.selectedPlayer = player;
   const bar = document.getElementById('confirm-bar');
   bar.classList.remove('hidden');
+  updateConfirmBarVisibility(true);
   document.getElementById('confirm-player-name').textContent = player.name;
 
   const league = state.league;
@@ -1832,13 +2097,13 @@ function updateConfirmBarButtons() {
   const currentPick = snakePicks[(league?.draftPicks || []).length];
   const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
   const isInQueue = state.myQueue.some(id => String(id) === String(state.selectedPlayer.id));
-  let html = `<button class="cancel-btn" onclick="clearSelection()">Cancel</button>`;
+  let html = `<button class="cancel-btn" onclick="clearSelection()">✕</button>`;
   if (!isMyTurn) {
-    if (isInQueue) html += `<button class="queue-btn queue-btn-remove" onclick="removeFromQueue()">Remove from Queue</button>`;
-    else html += `<button class="queue-btn" onclick="addToQueue()">Add to Queue</button>`;
+    if (isInQueue) html += `<button class="queue-btn queue-btn-remove" onclick="removeFromQueue()">Remove</button>`;
+    else html += `<button class="queue-btn" onclick="addToQueue()">Queue</button>`;
   } else {
-    if (isInQueue) html += `<button class="queue-btn queue-btn-remove" onclick="removeFromQueue()">Remove from Queue</button>`;
-    else html += `<button class="queue-btn" onclick="addToQueue()">Add to Queue</button>`;
+    if (isInQueue) html += `<button class="queue-btn queue-btn-remove" onclick="removeFromQueue()">Remove</button>`;
+    else html += `<button class="queue-btn" onclick="addToQueue()">Queue</button>`;
     html += `<button class="confirm-btn" onclick="confirmPick()">Draft</button>`;
   }
   wrap.innerHTML = html;
@@ -1847,6 +2112,7 @@ function updateConfirmBarButtons() {
 function clearSelection() {
   state.selectedPlayer = null;
   document.getElementById('confirm-bar').classList.add('hidden');
+  updateConfirmBarVisibility(false);
   filterDraftPool();
 }
 
@@ -1874,11 +2140,11 @@ async function confirmPick() {
     const data = await res.json();
     if (!res.ok) return alert(data.error);
 
-    // Update local state
     league.draftPicks.push(data.pick);
     applyDraftPicks();
     state.selectedPlayer = null;
     document.getElementById('confirm-bar').classList.add('hidden');
+    updateConfirmBarVisibility(false);
     renderDraft();
     renderHome();
   } catch(e) {
@@ -1962,16 +2228,13 @@ function renderQueue() {
   const container = document.getElementById('queue-display');
   if (!container) return;
   if (!state.managerId) {
-    container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">Queue not available in admin view</div>';
+    container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">Queue not available in admin-only view</div>';
     return;
   }
 
   const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
   const activeQueue = state.myQueue.filter(id => !draftedIds.has(String(id)));
-
-  if (activeQueue.length !== state.myQueue.length) {
-    state.myQueue = activeQueue;
-  }
+  if (activeQueue.length !== state.myQueue.length) state.myQueue = activeQueue;
 
   if (activeQueue.length === 0) {
     container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">No players queued</div>';
@@ -1981,7 +2244,6 @@ function renderQueue() {
   const snakePicks = generateSnakePicks(state.league?.draftOrder || [], ROSTER_SLOTS);
   const currentPick = snakePicks[(state.league?.draftPicks || []).length];
   const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
-  const topPlayerId = activeQueue[0];
 
   container.innerHTML = activeQueue.map((playerId, i) => {
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
@@ -2043,11 +2305,9 @@ function setupAdminPage() {
   document.getElementById('admin-league-info').textContent =
     `${league.name} · ${league.competition?.name} · ${league.managerCount} managers`;
 
-  // Admin link
   document.getElementById('admin-link-display').textContent =
     `${window.location.origin}?league=${state.leagueId}&admin=${state.adminToken}`;
 
-  // Invite links
   const grid = document.getElementById('invite-links-grid');
   grid.innerHTML = '';
   (league.inviteLinks || []).forEach(link => {
@@ -2059,12 +2319,11 @@ function setupAdminPage() {
         <div class="invite-link-text">${joined ? (link.managerName + ' — ' + link.teamName) : url}</div>
         <div>
           ${joined ? `<span class="invite-status status-joined">✓ Joined</span>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="copyLink('${url}')">Copy Link</button>
+          <button class="btn btn-outline btn-sm" onclick="copyLink('${url}')">Copy</button>
         </div>
       </div>`;
   });
 
-  // Draft order
   renderDraftOrderAdmin();
   populateManualPlayerSelect();
 
@@ -2168,8 +2427,7 @@ async function refreshPlayerPool() {
       applyDraftPicks();
       populateCountryFilters();
       populateManualPlayerSelect();
-      const added = data.added ?? 0;
-      msgEl.textContent = added > 0 ? `Added ${added} new player(s).` : 'Pool refreshed (no new players).';
+      msgEl.textContent = (data.added ?? 0) > 0 ? `Added ${data.added} new player(s).` : 'Pool refreshed (no new players).';
       renderDraft();
       renderHome();
     } else {
@@ -2304,10 +2562,7 @@ async function addManualStat() {
   const playerId = document.getElementById('manual-player').value;
   const stage = document.getElementById('manual-stage').value;
   const statType = document.getElementById('manual-stat-type').value;
-
-  const pointsMap = {
-    penalty_drawn: 1, goal: 3, pk_goal: 2, assist: 1, pk_miss: -1, red_card: -2
-  };
+  const pointsMap = { penalty_drawn:1, goal:3, pk_goal:2, assist:1, pk_miss:-1, red_card:-2 };
   const value = pointsMap[statType];
 
   try {
@@ -2320,13 +2575,10 @@ async function addManualStat() {
     if (res.ok) {
       const player = getAllPlayers().find(p => String(p.id) === String(playerId));
       state.manualStats.push({ playerId, stage, statType, value });
-
-      // Update player scores
       if (player) {
         if (!player.scores[stage]) player.scores[stage] = 0;
         player.scores[stage] += value;
       }
-
       renderManualStatLog();
       renderHome();
     }
@@ -2337,7 +2589,6 @@ function renderManualStatLog() {
   const log = document.getElementById('manual-stat-log');
   if (!log) return;
   if (state.manualStats.length === 0) { log.innerHTML = ''; return; }
-
   log.innerHTML = [...state.manualStats].reverse().map(s => {
     const player = getAllPlayers().find(p => String(p.id) === String(s.playerId));
     return `
@@ -2372,16 +2623,14 @@ function generateSnakePicks(draftOrder, rounds) {
 
 function populateCountryFilters() {
   const countries = [...new Set(getAllPlayers().map(p => p.country))].sort();
-  ['draft-country-filter'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    countries.forEach(c => {
-      if (!Array.from(sel.options).find(o => o.value === c)) {
-        const opt = document.createElement('option');
-        opt.value = c; opt.textContent = c;
-        sel.appendChild(opt);
-      }
-    });
+  const sel = document.getElementById('draft-country-filter');
+  if (!sel) return;
+  countries.forEach(c => {
+    if (!Array.from(sel.options).find(o => o.value === c)) {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    }
   });
 }
 
@@ -2443,6 +2692,20 @@ function showPage(name, tabEl) {
   document.getElementById('page-' + name).classList.add('active');
   if (tabEl) tabEl.classList.add('active');
 
+  // Sync mobile nav
+  const mobileMap = { home: 'mnav-home', draft: 'mnav-draft', admin: 'mnav-admin' };
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+  const mBtn = document.getElementById(mobileMap[name]);
+  if (mBtn) mBtn.classList.add('active');
+
+  // Draft sub-tabs
+  const subtabs = document.getElementById('mobile-draft-subtabs');
+  if (name === 'draft') {
+    subtabs.style.display = isMobile() ? 'flex' : 'none';
+  } else {
+    subtabs.style.display = 'none';
+  }
+
   if (name === 'draft') renderDraft();
   if (name === 'admin') setupAdminPage();
 }
@@ -2463,7 +2726,6 @@ async function refreshLeague() {
   } catch(e) {}
 }
 
-// Poll for updates every 30 seconds
 setInterval(async () => {
   if (state.leagueId) {
     await refreshLeague();
@@ -2502,10 +2764,10 @@ function rejoinLeague(index) {
   saveState();
   enterLeague();
 }
+
 loadState();
 renderMyLeagues();
 
-// Check URL params for auto-login
 const urlParams = new URLSearchParams(window.location.search);
 const urlLeague = urlParams.get('league');
 const urlAdmin = urlParams.get('admin');
@@ -2520,7 +2782,6 @@ if (urlLeague && urlAdmin) {
 } else if (urlLeague && urlToken) {
   state.leagueId = urlLeague;
   state.pendingToken = urlToken;
-  // Resolve token: already joined → re-enter league; otherwise show join form
   fetch(`${API}/api/leagues/${urlLeague}/slot-by-token?token=${encodeURIComponent(urlToken)}`)
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
