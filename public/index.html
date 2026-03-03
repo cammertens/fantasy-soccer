@@ -2001,8 +2001,18 @@ function renderRoster() {
   }
 }
 
+// Normalize strings for search: lowercase and strip accents/diacritics
+function normalizeSearchString(str) {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function filterDraftPool() {
-  const search = document.getElementById('draft-search').value.toLowerCase();
+  const searchRaw = document.getElementById('draft-search').value;
+  const search = normalizeSearchString(searchRaw);
   const posFilter = document.getElementById('draft-pos-filter').value;
   const countryFilter = document.getElementById('draft-country-filter').value;
   const league = state.league;
@@ -2010,10 +2020,12 @@ function filterDraftPool() {
   const draftedIds = new Set(picks.map(p => String(p.playerId)));
 
   let available = getAllPlayers().filter(p => {
+    const nameNorm = normalizeSearchString(p.name);
+    const countryNorm = normalizeSearchString(p.country);
     if (draftedIds.has(String(p.id))) return false;
     if (posFilter && p.pos !== posFilter) return false;
     if (countryFilter && p.country !== countryFilter) return false;
-    if (search && !p.name.toLowerCase().includes(search) && !p.country.toLowerCase().includes(search)) return false;
+    if (search && !nameNorm.includes(search) && !countryNorm.includes(search)) return false;
     return true;
   });
 
@@ -2521,13 +2533,16 @@ function initiateSwap(playerId) {
 }
 
 function filterSwapPool() {
-  const search = document.getElementById('swap-search')?.value.toLowerCase() || '';
+  const searchRaw = document.getElementById('swap-search')?.value || '';
+  const search = normalizeSearchString(searchRaw);
   const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
   draftedIds.delete(String(state.swapOutPlayerId));
 
   const available = getAllPlayers().filter(p => {
+    const nameNorm = normalizeSearchString(p.name);
+    const countryNorm = normalizeSearchString(p.country);
     if (draftedIds.has(String(p.id))) return false;
-    if (search && !p.name.toLowerCase().includes(search) && !p.country.toLowerCase().includes(search)) return false;
+    if (search && !nameNorm.includes(search) && !countryNorm.includes(search)) return false;
     return true;
   });
 
