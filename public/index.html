@@ -1707,9 +1707,7 @@ async function loadQueue() {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue?managerId=${encodeURIComponent(state.managerId)}`);
     const data = await res.json();
     if (res.ok) {
-      const raw = data.queue || [];
-      const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
-      state.myQueue = raw.filter(id => !draftedIds.has(String(id)));
+      state.myQueue = data.queue || [];
     }
   } catch(e) {}
 }
@@ -2254,10 +2252,8 @@ function renderQueue() {
   }
 
   const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
-  const activeQueue = state.myQueue.filter(id => !draftedIds.has(String(id)));
-  if (activeQueue.length !== state.myQueue.length) state.myQueue = activeQueue;
-
-  if (activeQueue.length === 0) {
+  const visibleCount = state.myQueue.filter(id => !draftedIds.has(String(id))).length;
+  if (visibleCount === 0) {
     container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">No players queued</div>';
     return;
   }
@@ -2266,10 +2262,14 @@ function renderQueue() {
   const currentPick = snakePicks[(state.league?.draftPicks || []).length];
   const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
 
-  container.innerHTML = activeQueue.map((playerId, i) => {
+  // Use state.myQueue indices so PUT sends the full queue (server requires same set of IDs)
+  let visibleIndex = 0;
+  container.innerHTML = state.myQueue.map((playerId, stateIndex) => {
+    if (draftedIds.has(String(playerId))) return '';
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
-    const isTop = i === 0 && isMyTurn;
+    const isTop = visibleIndex === 0 && isMyTurn;
+    visibleIndex++;
     const safeId = String(playerId).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     return `
       <div class="queue-item ${isTop ? 'queue-item-active' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
@@ -2281,8 +2281,8 @@ function renderQueue() {
           </div>
         </div>
         <div class="queue-item-controls" onclick="event.stopPropagation()">
-          ${i > 0 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${i}" data-queue-dir="-1">↑</button>` : ''}
-          ${i < activeQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${i}" data-queue-dir="1">↓</button>` : ''}
+          ${stateIndex > 0 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${stateIndex}" data-queue-dir="-1">↑</button>` : ''}
+          ${stateIndex < state.myQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${stateIndex}" data-queue-dir="1">↓</button>` : ''}
           <button type="button" class="queue-ctrl-btn queue-ctrl-remove" data-queue-remove-id="${safeId}">✕</button>
         </div>
       </div>`;
