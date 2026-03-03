@@ -2229,6 +2229,23 @@ async function removeQueueItemDirect(playerId) {
 function renderQueue() {
   const container = document.getElementById('queue-display');
   if (!container) return;
+
+  // Attach delegation once so up/down/remove work after every re-render (same container, new innerHTML)
+  if (!container._queueDelegation) {
+    container._queueDelegation = true;
+    container.addEventListener('click', function(e) {
+      const btn = e.target.closest('button[data-queue-index], button[data-queue-remove-id]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = btn.getAttribute('data-queue-index');
+      const dir = btn.getAttribute('data-queue-dir');
+      const removeId = btn.getAttribute('data-queue-remove-id');
+      if (idx !== null && dir !== null) moveQueueItem(parseInt(idx, 10), parseInt(dir, 10));
+      else if (removeId !== null) removeQueueItemDirect(removeId);
+    });
+  }
+
   if (!state.managerId) {
     container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">Queue not available in admin-only view</div>';
     return;
@@ -2251,6 +2268,7 @@ function renderQueue() {
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
     const isTop = i === 0 && isMyTurn;
+    const safeId = String(playerId).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     return `
       <div class="queue-item ${isTop ? 'queue-item-active' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
         <div class="queue-item-info">
@@ -2261,9 +2279,9 @@ function renderQueue() {
           </div>
         </div>
         <div class="queue-item-controls" onclick="event.stopPropagation()">
-          ${i > 0 ? `<button class="queue-ctrl-btn" onclick="moveQueueItem(${i}, -1)">↑</button>` : ''}
-          ${i < activeQueue.length - 1 ? `<button class="queue-ctrl-btn" onclick="moveQueueItem(${i}, 1)">↓</button>` : ''}
-          <button class="queue-ctrl-btn queue-ctrl-remove" onclick="removeQueueItemDirect('${String(playerId).replace(/'/g, "\\'")}')">✕</button>
+          ${i > 0 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${i}" data-queue-dir="-1">↑</button>` : ''}
+          ${i < activeQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${i}" data-queue-dir="1">↓</button>` : ''}
+          <button type="button" class="queue-ctrl-btn queue-ctrl-remove" data-queue-remove-id="${safeId}">✕</button>
         </div>
       </div>`;
   }).join('');
@@ -2278,9 +2296,11 @@ function renderDraftResults() {
     return;
   }
 
-  const reversed = [...picks].reverse();
-  container.innerHTML = reversed.map(pick => {
+  // Pick #1 at top, then #2, #3... stacked below (natural order, no reverse)
+  const isMe = function(mid) { return String(mid) === String(state.managerId); };
+  container.innerHTML = picks.map(pick => {
     const player = getAllPlayers().find(p => String(p.id) === String(pick.playerId));
+    const managerStyle = isMe(pick.managerId) ? ' style="color:var(--gold);font-weight:600"' : '';
     return `
       <div class="result-item">
         <div class="result-pick-num">
@@ -2291,7 +2311,7 @@ function renderDraftResults() {
           <div class="result-player">${player ? player.name : pick.playerId}
             <span class="result-country">${player?.country || ''}</span>
           </div>
-          <div class="result-manager">${pick.managerName}</div>
+          <div class="result-manager"${managerStyle}>${pick.managerName}</div>
         </div>
       </div>`;
   }).join('');
