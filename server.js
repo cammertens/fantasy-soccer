@@ -325,7 +325,7 @@ const COMPETITION_TEAMS = {
     { id: 530, name: 'Atletico Madrid', code: 'ATL' },
     { id: 157, name: 'Bayern Munich', code: 'BAY' },
     { id: 85, name: 'PSG', code: 'PAR' },
-    { id: 168, name: 'Bayer Leverkusen', code: 'BAY' },
+    { id: 168, name: 'Bayer Leverkusen', code: 'LEV' },
     { id: 499, name: 'Atalanta', code: 'ATA' },
     { id: 228, name: 'Sporting CP', code: 'SPO' },
     { id: 49, name: 'Chelsea', code: 'CHE' },
@@ -364,7 +364,7 @@ async function fetchSquadsFromApi(leagueApiId) {
             playerMap.set(p.id, {
               id: p.id,
               name: p.name,
-              country: squad.team?.code || (squad.team?.name || '').substring(0, 3).toUpperCase() || '???',
+              country: t.code,
               pos: mapPosition(p.position),
               scores: {},
               draftedBy: null
@@ -726,6 +726,56 @@ app.post('/api/leagues/:id/players/refresh', async (req, res) => {
     res.json({ players, teams, added });
   } catch(e) {
     console.error('[players/refresh]', e);
+    if (e && e.isApiFootballError) return sendApiFootballError(res, e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Fix Bayer Leverkusen tricode in existing pool (BAY → LEV); display-only, does not touch draft/queue
+const LEVERKUSEN_TEAM_API_ID = 168;
+app.post('/api/leagues/:id/fix-leverkusen-code', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+    const comp = league.competition;
+    if (!comp || comp.leagueId == null || comp.season == null) {
+      return res.status(400).json({ error: 'League has no competition configured' });
+    }
+    const leagueApiId = typeof comp.leagueId === 'number' ? comp.leagueId : parseInt(comp.leagueId, 10);
+    const season = typeof comp.season === 'number' ? comp.season : parseInt(comp.season, 10);
+
+    const squadData = await apiFootball('/players/squads', { team: LEVERKUSEN_TEAM_API_ID });
+    const leverkusenIds = new Set(
+      (squadData.response || []).flatMap(s => (s.players || []).map(p => String(p.id)))
+    );
+    if (leverkusenIds.size === 0) {
+      return res.status(502).json({ error: 'Could not load Leverkusen squad from API' });
+    }
+
+    const poolRes = await pool.query(
+      'SELECT players, teams FROM player_pools WHERE league_api_id = $1 AND season = $2',
+      [leagueApiId, season]
+    );
+    if (poolRes.rows.length === 0) {
+      return res.status(404).json({ error: 'No player pool found for this competition' });
+    }
+    const players = poolRes.rows[0].players || [];
+    const teams = poolRes.rows[0].teams || [];
+    let updated = 0;
+    for (const p of players) {
+      if (leverkusenIds.has(String(p.id))) {
+        p.country = 'LEV';
+        updated++;
+      }
+    }
+    await pool.query(
+      `UPDATE player_pools SET players = $1, last_refreshed_at = NOW() WHERE league_api_id = $2 AND season = $3`,
+      [JSON.stringify(players), leagueApiId, season]
+    );
+    res.json({ success: true, updated, leverkusenPlayerCount: leverkusenIds.size });
+  } catch(e) {
+    console.error('[fix-leverkusen-code]', e);
     if (e && e.isApiFootballError) return sendApiFootballError(res, e);
     res.status(500).json({ error: e.message });
   }
