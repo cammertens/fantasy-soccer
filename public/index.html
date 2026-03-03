@@ -1648,6 +1648,15 @@ async function enterLeague() {
     if (!leagueRes.ok) return;
     state.league = await leagueRes.json();
 
+    if (state.isAdmin && !state.managerId && state.league.inviteLinks?.length) {
+      const slot1 = state.league.inviteLinks.find(l => l.slot === 1) || state.league.inviteLinks[0];
+      if (slot1?.managerId) {
+        state.managerId = slot1.managerId;
+        state.managerName = slot1.managerName || state.managerName || '';
+        saveState();
+      }
+    }
+
     document.getElementById('nav-league-name').textContent = state.league.name;
     if (state.isAdmin) document.getElementById('nav-admin-badge').style.display = 'inline';
 
