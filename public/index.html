@@ -1902,15 +1902,17 @@ function renderDraft() {
 
   const scroll = document.getElementById('snake-scroll');
   scroll.innerHTML = '';
+  const isMyManagerId = function(mid) { return String(mid) === String(state.managerId); };
   snakePicks.forEach((p, i) => {
     const pick = picks[i];
     const player = pick ? getAllPlayers().find(pl => String(pl.id) === String(pick.playerId)) : null;
     const isCompleted = !!pick;
     const isCurrent = currentPick && p.overall === currentPick.overall;
+    const managerStyle = isMyManagerId(p.managerId) ? ' style="color:var(--gold);font-weight:600"' : '';
     scroll.innerHTML += `
       <div class="snake-pick ${isCompleted?'completed':''} ${isCurrent?'current':''}">
         <div class="snake-pick-num">R${p.round} · #${p.overall}</div>
-        <div class="snake-pick-manager">${p.managerName}</div>
+        <div class="snake-pick-manager"${managerStyle}>${p.managerName}</div>
         ${isCompleted && player ? `<div class="snake-pick-player">${player.name} · ${player.country}</div>` : ''}
       </div>`;
   });
@@ -2230,7 +2232,7 @@ function renderQueue() {
   const container = document.getElementById('queue-display');
   if (!container) return;
 
-  // Attach delegation once so up/down/remove work after every re-render (same container, new innerHTML)
+  // Attach delegation once (capture phase so we run before the controls div's stopPropagation)
   if (!container._queueDelegation) {
     container._queueDelegation = true;
     container.addEventListener('click', function(e) {
@@ -2241,9 +2243,9 @@ function renderQueue() {
       const idx = btn.getAttribute('data-queue-index');
       const dir = btn.getAttribute('data-queue-dir');
       const removeId = btn.getAttribute('data-queue-remove-id');
-      if (idx !== null && dir !== null) moveQueueItem(parseInt(idx, 10), parseInt(dir, 10));
-      else if (removeId !== null) removeQueueItemDirect(removeId);
-    });
+      if (idx != null && dir != null) moveQueueItem(parseInt(idx, 10), parseInt(dir, 10));
+      else if (removeId != null) removeQueueItemDirect(removeId);
+    }, true);
   }
 
   if (!state.managerId) {
