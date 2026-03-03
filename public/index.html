@@ -2001,13 +2001,20 @@ function renderRoster() {
   }
 }
 
-// Normalize strings for search: lowercase and strip accents/diacritics
+// Normalize strings for search: lowercase and strip accents/diacritics, including Scandinavian letters
 function normalizeSearchString(str) {
   if (!str) return '';
-  return String(str)
+  let s = String(str)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+  // Extra handling for characters that don't decompose cleanly everywhere
+  s = s
+    .replace(/ø/g, 'o')
+    .replace(/œ/g, 'oe')
+    .replace(/æ/g, 'ae')
+    .replace(/å/g, 'a');
+  return s;
 }
 
 function filterDraftPool() {
