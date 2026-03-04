@@ -766,6 +766,7 @@
     gap: 8px;
   }
   .queue-item-active { background: rgba(245,200,66,0.08); border-left: 3px solid var(--gold); }
+  .queue-item.selected { background: rgba(245,200,66,0.15); border-left: 3px solid var(--gold); }
   .queue-item-name { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
   .queue-item-meta { display: flex; gap: 6px; align-items: center; }
   .queue-item-controls { display: flex; gap: 4px; flex-shrink: 0; }
@@ -2222,20 +2223,23 @@ async function moveQueueItem(index, direction) {
   const arr = [...state.myQueue];
   const targetIndex = index + direction;
   if (targetIndex < 0 || targetIndex >= arr.length) return;
+  // Update local state immediately so the UI always responds
   [arr[index], arr[targetIndex]] = [arr[targetIndex], arr[index]];
+  state.myQueue = arr;
+  renderQueue();
+  filterDraftPool();
   try {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ managerId: state.managerId, queue: arr })
     });
-    const data = await res.json();
-    if (res.ok) {
-      state.myQueue = data.queue;
-      renderQueue();
-      filterDraftPool();
-    }
-  } catch(e) { alert('Failed to reorder queue.'); }
+    // If server rejects, we keep the local order; a reload will resync from server
+    await res.json().catch(() => ({}));
+  } catch(e) {
+    // Don't break the draft on errors; worst case queue order isn't persisted
+    console.warn('Failed to reorder queue on server', e);
+  }
 }
 
 async function removeQueueItemDirect(playerId) {
@@ -2296,11 +2300,12 @@ function renderQueue() {
     if (draftedIds.has(String(playerId))) return '';
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
-    const isTop = visibleIndex === 0 && isMyTurn;
+    const isSelected = state.selectedPlayer && String(state.selectedPlayer.id) === String(playerId);
+    const isTop = !isSelected && visibleIndex === 0 && isMyTurn;
     visibleIndex++;
     const safeId = String(playerId).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     return `
-      <div class="queue-item ${isTop ? 'queue-item-active' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
+      <div class="queue-item ${isTop ? 'queue-item-active' : ''} ${isSelected ? 'selected' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
         <div class="queue-item-info">
           <div class="queue-item-name">${player.name}</div>
           <div class="queue-item-meta">
