@@ -783,6 +783,7 @@
   }
   .queue-ctrl-btn:hover { background: rgba(255,255,255,0.1); color: var(--white); }
   .queue-ctrl-btn.queue-ctrl-remove:hover { background: rgba(192,57,43,0.2); color: #f87171; }
+  .queue-draft-btn { display: none; }
 
   .cancel-btn {
     background: transparent;
@@ -1066,6 +1067,9 @@
     /* Make confirm bar buttons stack nicely on small screens */
     #confirm-bar-buttons { flex-wrap: wrap; gap: 4px; }
     .confirm-btn, .queue-btn { padding: 7px 12px; font-size: 11px; }
+
+    /* Show mobile-only draft button in queue rows */
+    .queue-draft-btn { display: inline-flex; }
 
     /* Admin page */
     .admin-setup { padding: 12px; }
@@ -2255,6 +2259,18 @@ function onQueueRemoveClick(e, playerId) {
   removeQueueItemDirect(playerId);
 }
 
+function onQueueDraftClick(e, playerId) {
+  e.preventDefault();
+  e.stopPropagation();
+  draftFromQueue(playerId);
+}
+
+function draftFromQueue(playerId) {
+  selectPlayer(playerId);
+  // Reuse existing confirmPick flow (respects turn order and admin overrides)
+  confirmPick();
+}
+
 async function removeQueueItemDirect(playerId) {
   try {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue/${encodeURIComponent(playerId)}`, {
@@ -2301,8 +2317,9 @@ function renderQueue() {
     if (!player) return '';
     const isSelected = state.selectedPlayer && String(state.selectedPlayer.id) === String(playerId);
     const safeId = String(playerId).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const jsId = String(playerId).replace(/'/g, "\\'");
     return `
-      <div class="queue-item ${isSelected ? 'selected' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
+      <div class="queue-item ${isSelected ? 'selected' : ''}" onclick="selectPlayer('${jsId}')" style="cursor:pointer">
         <div class="queue-item-info">
           <div class="queue-item-name">${player.name}</div>
           <div class="queue-item-meta">
@@ -2313,6 +2330,7 @@ function renderQueue() {
         <div class="queue-item-controls" onclick="event.stopPropagation()">
           ${stateIndex > 0 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${stateIndex}, -1)">↑</button>` : ''}
           ${stateIndex < state.myQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${stateIndex}, 1)">↓</button>` : ''}
+          <button type="button" class="queue-ctrl-btn queue-draft-btn" onclick="onQueueDraftClick(event, '${jsId}')">★</button>
           <button type="button" class="queue-ctrl-btn queue-ctrl-remove" onclick="onQueueRemoveClick(event, '${safeId}')">✕</button>
         </div>
       </div>`;
