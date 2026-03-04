@@ -2285,8 +2285,18 @@ function renderQueue() {
     return;
   }
 
-  // Use full queue order; we no longer hide drafted players here so what you see always matches the underlying array
-  container.innerHTML = state.myQueue.map((playerId, stateIndex) => {
+  // Hide drafted players in the UI, but keep using the underlying state.myQueue indices for moves
+  const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
+  const visible = state.myQueue
+    .map((playerId, stateIndex) => ({ playerId, stateIndex }))
+    .filter(entry => !draftedIds.has(String(entry.playerId)));
+
+  if (visible.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">No players queued</div>';
+    return;
+  }
+
+  container.innerHTML = visible.map(({ playerId, stateIndex }) => {
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
     const isSelected = state.selectedPlayer && String(state.selectedPlayer.id) === String(playerId);
