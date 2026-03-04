@@ -2267,7 +2267,9 @@ function onQueueDraftClick(e, playerId) {
 
 function draftFromQueue(playerId) {
   selectPlayer(playerId);
-  // Reuse existing confirmPick flow (respects turn order and admin overrides)
+  const player = state.selectedPlayer;
+  if (!player) return;
+  if (!confirm(`Draft ${player.name}?`)) return;
   confirmPick();
 }
 
