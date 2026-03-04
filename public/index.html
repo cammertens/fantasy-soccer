@@ -2242,6 +2242,18 @@ async function moveQueueItem(index, direction) {
   }
 }
 
+function onQueueMoveClick(e, index, direction) {
+  e.preventDefault();
+  e.stopPropagation();
+  moveQueueItem(index, direction);
+}
+
+function onQueueRemoveClick(e, playerId) {
+  e.preventDefault();
+  e.stopPropagation();
+  removeQueueItemDirect(playerId);
+}
+
 async function removeQueueItemDirect(playerId) {
   try {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}/queue/${encodeURIComponent(playerId)}`, {
@@ -2261,22 +2273,6 @@ async function removeQueueItemDirect(playerId) {
 function renderQueue() {
   const container = document.getElementById('queue-display');
   if (!container) return;
-
-  // Attach delegation once (capture phase so we run before the controls div's stopPropagation)
-  if (!container._queueDelegation) {
-    container._queueDelegation = true;
-    container.addEventListener('click', function(e) {
-      const btn = e.target.closest('button[data-queue-index], button[data-queue-remove-id]');
-      if (!btn) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const idx = btn.getAttribute('data-queue-index');
-      const dir = btn.getAttribute('data-queue-dir');
-      const removeId = btn.getAttribute('data-queue-remove-id');
-      if (idx != null && dir != null) moveQueueItem(parseInt(idx, 10), parseInt(dir, 10));
-      else if (removeId != null) removeQueueItemDirect(removeId);
-    }, true);
-  }
 
   if (!state.managerId) {
     container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">Queue not available in admin-only view</div>';
@@ -2301,11 +2297,10 @@ function renderQueue() {
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
     const isSelected = state.selectedPlayer && String(state.selectedPlayer.id) === String(playerId);
-    const isTop = !isSelected && visibleIndex === 0 && isMyTurn;
     visibleIndex++;
     const safeId = String(playerId).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     return `
-      <div class="queue-item ${isTop ? 'queue-item-active' : ''} ${isSelected ? 'selected' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
+      <div class="queue-item ${isSelected ? 'selected' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
         <div class="queue-item-info">
           <div class="queue-item-name">${player.name}</div>
           <div class="queue-item-meta">
@@ -2314,9 +2309,9 @@ function renderQueue() {
           </div>
         </div>
         <div class="queue-item-controls" onclick="event.stopPropagation()">
-          ${stateIndex > 0 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${stateIndex}" data-queue-dir="-1">↑</button>` : ''}
-          ${stateIndex < state.myQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" data-queue-index="${stateIndex}" data-queue-dir="1">↓</button>` : ''}
-          <button type="button" class="queue-ctrl-btn queue-ctrl-remove" data-queue-remove-id="${safeId}">✕</button>
+          ${stateIndex > 0 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${stateIndex}, -1)">↑</button>` : ''}
+          ${stateIndex < state.myQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${stateIndex}, 1)">↓</button>` : ''}
+          <button type="button" class="queue-ctrl-btn queue-ctrl-remove" onclick="onQueueRemoveClick(event, '${safeId}')">✕</button>
         </div>
       </div>`;
   }).join('');
