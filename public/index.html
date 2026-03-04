@@ -2118,6 +2118,7 @@ function selectPlayer(id) {
 
   updateConfirmBarButtons();
   filterDraftPool();
+  renderQueue();
 }
 
 function updateConfirmBarButtons() {
@@ -2279,25 +2280,16 @@ function renderQueue() {
     return;
   }
 
-  const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
-  const visibleCount = state.myQueue.filter(id => !draftedIds.has(String(id))).length;
-  if (visibleCount === 0) {
+  if (!state.myQueue || state.myQueue.length === 0) {
     container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">No players queued</div>';
     return;
   }
 
-  const snakePicks = generateSnakePicks(state.league?.draftOrder || [], ROSTER_SLOTS);
-  const currentPick = snakePicks[(state.league?.draftPicks || []).length];
-  const isMyTurn = state.isAdmin || (currentPick && currentPick.managerId === state.managerId);
-
-  // Use state.myQueue indices so PUT sends the full queue (server requires same set of IDs)
-  let visibleIndex = 0;
+  // Use full queue order; we no longer hide drafted players here so what you see always matches the underlying array
   container.innerHTML = state.myQueue.map((playerId, stateIndex) => {
-    if (draftedIds.has(String(playerId))) return '';
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
     const isSelected = state.selectedPlayer && String(state.selectedPlayer.id) === String(playerId);
-    visibleIndex++;
     const safeId = String(playerId).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     return `
       <div class="queue-item ${isSelected ? 'selected' : ''}" onclick="selectPlayer('${String(playerId).replace(/'/g, "\\'")}')" style="cursor:pointer">
