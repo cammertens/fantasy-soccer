@@ -436,6 +436,7 @@
     text-transform: uppercase;
     color: var(--gray);
   }
+  .col-header span:nth-child(n+3):not(:last-child) { text-align: center; }
 
   .player-row {
     display: grid;
@@ -1841,7 +1842,7 @@ function renderHome() {
   const stageHeaders = mobile ? '' : STAGES.map(s=>`<span>${s}</span>`).join('');
   const gridCols = mobile
     ? '1fr 40px 50px'
-    : `180px 60px ${STAGES.map(()=>'42px').join(' ')} 70px`;
+    : `180px 60px ${STAGES.map(()=>'52px').join(' ')} 70px`;
 
   managers.forEach((m, mi) => {
     const { offense, defense } = getManagerPlayers(m.managerId);
