@@ -1140,8 +1140,6 @@ async function pollLiveFixtures() {
 
       // Elapsed-based filtering
       if (status === 'NS' || status === 'HT') continue;
-      if (status === '1H' && elapsed < 15) continue;
-      if (status === '2H' && elapsed < 60) continue;
 
       const isFinal = ['FT', 'AET', 'PEN'].includes(status);
       const stage = seededMap.get(fixtureId);
