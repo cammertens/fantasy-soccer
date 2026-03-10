@@ -1350,6 +1350,25 @@ app.post('/api/admin/poll-now', async (req, res) => {
   }
 });
 
+// TEMP: Debug route to compare live fixtures vs seeded fixtures
+app.get('/api/admin/debug-fixtures', async (req, res) => {
+  try {
+    const live = await apiFootball('/fixtures', { live: 'all', league: 2, season: 2025 });
+    const seeded = await pool.query('SELECT id, stage, status, elapsed FROM fixtures ORDER BY id');
+    res.json({
+      live: (live.response || []).map(f => ({
+        id: f.fixture.id,
+        status: f.fixture.status?.short,
+        elapsed: f.fixture.status?.elapsed
+      })),
+      seeded: seeded.rows
+    });
+  } catch (e) {
+    console.error('[debug-fixtures]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // =============================================
 // START
 // =============================================
