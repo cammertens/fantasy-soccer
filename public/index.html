@@ -382,6 +382,13 @@
     color: var(--gold);
   }
 
+  .profile-form { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .profile-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--gray); }
+  .profile-form .form-input { font-size: 13px; padding: 8px 10px; }
+  .profile-msg { font-size: 12px; margin-top: 4px; }
+  .profile-msg.success { color: var(--green-light); }
+  .profile-msg.error { color: #f87171; }
+
   .standings-row {
     display: grid;
     grid-template-columns: 24px 1fr auto;
@@ -1206,6 +1213,17 @@
         <div class="sidebar-header">Standings</div>
         <div id="standings-list"></div>
       </div>
+      <div class="sidebar-card" id="your-profile-card" style="display:none">
+        <div class="sidebar-header">Your profile</div>
+        <div class="profile-form">
+          <label class="profile-label">Manager name</label>
+          <input type="text" class="form-input" id="profile-manager-name" placeholder="Your name" />
+          <label class="profile-label">Team name</label>
+          <input type="text" class="form-input" id="profile-team-name" placeholder="Team name" />
+          <button type="button" class="btn btn-primary" id="profile-save-btn" onclick="saveProfile()">Save</button>
+          <div id="profile-msg" class="profile-msg" style="display:none"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1834,6 +1852,22 @@ function renderHome() {
       <div class="standings-pts">${undraftedPts}</div>
     </div>`;
 
+  const profileCard = document.getElementById('your-profile-card');
+  if (profileCard) {
+    if (state.managerId) {
+      profileCard.style.display = 'block';
+      const me = managers.find(m => String(m.managerId) === String(state.managerId));
+      const nameInput = document.getElementById('profile-manager-name');
+      const teamInput = document.getElementById('profile-team-name');
+      const msgEl = document.getElementById('profile-msg');
+      if (nameInput) nameInput.value = me ? (me.managerName || '') : (state.managerName || '');
+      if (teamInput) teamInput.value = me ? (me.teamName || '') : '';
+      if (msgEl) { msgEl.style.display = 'none'; msgEl.className = 'profile-msg'; }
+    } else {
+      profileCard.style.display = 'none';
+    }
+  }
+
   const col = document.getElementById('managers-column');
   col.innerHTML = '';
 
@@ -2195,6 +2229,7 @@ async function confirmPick() {
 
     league.draftPicks.push(data.pick);
     applyDraftPicks();
+    removeDraftedFromQueue();
     state.selectedPlayer = null;
     document.getElementById('confirm-bar').classList.add('hidden');
     updateConfirmBarVisibility(false);
@@ -2306,6 +2341,20 @@ async function removeQueueItemDirect(playerId) {
   } catch(e) { alert('Failed to remove from queue.'); }
 }
 
+function removeDraftedFromQueue() {
+  if (!state.myQueue || !state.league) return;
+  const draftedIds = new Set((state.league.draftPicks || []).map(p => String(p.playerId)));
+  const before = state.myQueue.length;
+  state.myQueue = state.myQueue.filter(id => !draftedIds.has(String(id)));
+  if (state.myQueue.length !== before) {
+    fetch(`${API}/api/leagues/${state.leagueId}/queue`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: state.managerId, queue: state.myQueue })
+    }).catch(() => {});
+  }
+}
+
 function renderQueue() {
   const container = document.getElementById('queue-display');
   if (!container) return;
@@ -2320,18 +2369,7 @@ function renderQueue() {
     return;
   }
 
-  // Hide drafted players in the UI, but keep using the underlying state.myQueue indices for moves
-  const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
-  const visible = state.myQueue
-    .map((playerId, stateIndex) => ({ playerId, stateIndex }))
-    .filter(entry => !draftedIds.has(String(entry.playerId)));
-
-  if (visible.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding:16px;font-size:12px;">No players queued</div>';
-    return;
-  }
-
-  container.innerHTML = visible.map(({ playerId, stateIndex }) => {
+  container.innerHTML = state.myQueue.map((playerId, index) => {
     const player = getAllPlayers().find(p => String(p.id) === String(playerId));
     if (!player) return '';
     const isSelected = state.selectedPlayer && String(state.selectedPlayer.id) === String(playerId);
@@ -2347,8 +2385,8 @@ function renderQueue() {
           </div>
         </div>
         <div class="queue-item-controls" onclick="event.stopPropagation()">
-          ${stateIndex > 0 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${stateIndex}, -1)">↑</button>` : ''}
-          ${stateIndex < state.myQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${stateIndex}, 1)">↓</button>` : ''}
+          ${index > 0 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${index}, -1)">↑</button>` : ''}
+          ${index < state.myQueue.length - 1 ? `<button type="button" class="queue-ctrl-btn" onclick="onQueueMoveClick(event, ${index}, 1)">↓</button>` : ''}
           <button type="button" class="queue-ctrl-btn queue-draft-btn" onclick="onQueueDraftClick(event, '${jsId}')">★</button>
           <button type="button" class="queue-ctrl-btn queue-ctrl-remove" onclick="onQueueRemoveClick(event, '${safeId}')">✕</button>
         </div>
@@ -2814,6 +2852,37 @@ async function deleteLeague() {
   }
 }
 
+async function saveProfile() {
+  if (!state.managerId || !state.leagueId) return;
+  const nameInput = document.getElementById('profile-manager-name');
+  const teamInput = document.getElementById('profile-team-name');
+  const msgEl = document.getElementById('profile-msg');
+  const managerName = nameInput ? nameInput.value.trim() : '';
+  const teamName = teamInput ? teamInput.value.trim() : '';
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/profile`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerId: state.managerId, managerName, teamName })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (msgEl) { msgEl.textContent = data.error || 'Failed to save'; msgEl.className = 'profile-msg error'; msgEl.style.display = 'block'; }
+      return;
+    }
+    state.managerName = data.managerName;
+    const managers = state.league.managers || [];
+    const me = managers.find(m => String(m.managerId) === String(state.managerId));
+    if (me) { me.managerName = data.managerName; me.teamName = data.teamName; }
+    if (msgEl) { msgEl.textContent = 'Saved.'; msgEl.className = 'profile-msg success'; msgEl.style.display = 'block'; }
+    setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 2000);
+    renderHome();
+    renderDraft();
+  } catch(e) {
+    if (msgEl) { msgEl.textContent = 'Failed to save: ' + e.message; msgEl.className = 'profile-msg error'; msgEl.style.display = 'block'; }
+  }
+}
+
 function showPage(name, tabEl) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -2850,6 +2919,7 @@ async function refreshLeague() {
     if (res.ok) {
       state.league = await res.json();
       applyDraftPicks();
+      removeDraftedFromQueue();
       await loadPlayers();
     }
   } catch(e) {}

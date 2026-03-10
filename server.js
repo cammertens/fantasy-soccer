@@ -635,6 +635,40 @@ app.post('/api/leagues/:id/verify-manager', async (req, res) => {
   }
 });
 
+// Update own profile (manager name / team name) — no admin required; managerId must match slot
+app.patch('/api/leagues/:id/profile', async (req, res) => {
+  const leagueId = req.params.id;
+  const { managerId, managerName, teamName } = req.body;
+  if (!managerId) return res.status(400).json({ error: 'Missing managerId' });
+  try {
+    const slotRes = await pool.query(
+      'SELECT id FROM league_slots WHERE league_id = $1 AND manager_id = $2',
+      [leagueId, managerId]
+    );
+    if (slotRes.rows.length === 0) return res.status(404).json({ error: 'Manager not found' });
+    const slot = slotRes.rows[0];
+    const updates = [];
+    const values = [];
+    let n = 1;
+    if (managerName !== undefined) { updates.push(`manager_name = $${n++}`); values.push(managerName == null ? '' : String(managerName)); }
+    if (teamName !== undefined) { updates.push(`team_name = $${n++}`); values.push(teamName == null ? '' : String(teamName)); }
+    if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    values.push(slot.id);
+    await pool.query(
+      `UPDATE league_slots SET ${updates.join(', ')} WHERE id = $${n}`,
+      values
+    );
+    const updated = await pool.query(
+      'SELECT manager_id, manager_name, team_name FROM league_slots WHERE id = $1',
+      [slot.id]
+    );
+    const row = updated.rows[0];
+    res.json({ managerId: row.manager_id, managerName: row.manager_name, teamName: row.team_name });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/leagues/:id', async (req, res) => {
   try {
     const league = await getLeague(req.params.id);
