@@ -83,7 +83,7 @@ async function initDB() {
         match_date TIMESTAMP
       );
     `);
-    console.log('Database initialized');
+    console.log('Database initialized (live scoring seed ready)');
   } catch(e) {
     console.error('DB init error:', e.message);
   }
