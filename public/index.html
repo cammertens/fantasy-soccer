@@ -1301,6 +1301,16 @@
     </div>
 
     <div class="admin-card">
+      <div class="section-title">Live Scoring</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">
+        Seed fixtures from the API before match day. Run once per round.
+      </p>
+      <button class="btn btn-outline btn-sm" onclick="seedFixtures()">Seed R16 Fixtures</button>
+      <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="pollNow()">Poll Now</button>
+      <div class="success-msg" id="fixtures-msg" style="margin-top:10px"></div>
+    </div>
+
+    <div class="admin-card">
       <div class="section-title">Draft Controls</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" onclick="toggleDraft(true)">Open Draft</button>
@@ -2509,6 +2519,40 @@ async function refreshPlayerPool() {
     }
   } catch(e) {
     msgEl.textContent = 'Refresh failed: ' + (e.message || 'network error');
+  }
+}
+
+async function seedFixtures() {
+  const msg = document.getElementById('fixtures-msg');
+  if (!msg) return;
+  msg.textContent = 'Seeding...';
+  msg.style.display = 'block';
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/seed-fixtures`, {
+      method: 'POST',
+      headers: { 'x-admin-token': state.adminToken }
+    });
+    const data = await res.json().catch(() => ({}));
+    msg.textContent = res.ok ? `Seeded ${data.count || 0} fixtures.` : (data.error || 'Failed.');
+  } catch(e) {
+    msg.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function pollNow() {
+  const msg = document.getElementById('fixtures-msg');
+  if (!msg) return;
+  msg.textContent = 'Polling...';
+  msg.style.display = 'block';
+  try {
+    const res = await fetch(`${API}/api/admin/poll-now`, {
+      method: 'POST',
+      headers: { 'x-admin-token': state.adminToken }
+    });
+    const data = await res.json().catch(() => ({}));
+    msg.textContent = res.ok ? 'Poll triggered.' : (data.error || 'Failed.');
+  } catch(e) {
+    msg.textContent = 'Error: ' + e.message;
   }
 }
 

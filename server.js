@@ -68,6 +68,20 @@ async function initDB() {
         updated_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(league_id, manager_id)
       );
+
+      CREATE TABLE IF NOT EXISTS fixtures (
+        id BIGINT PRIMARY KEY,           -- API-Football fixture ID
+        league_api_id INTEGER NOT NULL,
+        season INTEGER NOT NULL,
+        round TEXT,
+        stage TEXT,
+        home_team_api_id INTEGER,
+        away_team_api_id INTEGER,
+        status TEXT,
+        elapsed INTEGER,
+        finalized BOOLEAN DEFAULT false,
+        match_date TIMESTAMP
+      );
     `);
     console.log('Database initialized');
   } catch(e) {
@@ -1001,6 +1015,148 @@ app.get('/api/football/standings', async (req, res) => {
     res.json(data);
   } catch(e) {
     sendApiFootballError(res, e);
+  }
+});
+
+// =============================================
+// LIVE SCORING: FIXTURE SEEDING (BACKEND HOOKS)
+// =============================================
+
+// Helper: determine the \"current\" round string for a league/season by looking at
+// fixtures that are upcoming or in progress. We pick the round with the most such fixtures.
+async function getCurrentRoundForCompetition(leagueApiId, season) {
+  const data = await apiFootball('/fixtures', {
+    league: leagueApiId,
+    season: season
+  });
+  const fixtures = data.response || [];
+  if (fixtures.length === 0) return null;
+
+  // Consider fixtures that are not finished yet as \"active\" for current round
+  const activeStatuses = new Set(['NS', 'TBD', '1H', 'HT', '2H', 'ET', 'P', 'LIVE']);
+  const roundCounts = new Map();
+
+  for (const f of fixtures) {
+    const statusShort = f.fixture?.status?.short;
+    const round = f.league?.round;
+    if (!round || !statusShort) continue;
+    if (!activeStatuses.has(statusShort)) continue;
+    const prev = roundCounts.get(round) || 0;
+    roundCounts.set(round, prev + 1);
+  }
+
+  if (roundCounts.size === 0) return null;
+
+  // Pick the round with the highest count of active fixtures
+  let bestRound = null;
+  let bestCount = -1;
+  for (const [round, count] of roundCounts.entries()) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestRound = round;
+    }
+  }
+  return bestRound;
+}
+
+// Admin-only: seed fixtures for the league's current competition and current round.
+// Safe to press multiple times per round thanks to ON CONFLICT(id) upsert.
+app.post('/api/leagues/:id/seed-fixtures', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    const comp = league.competition;
+    if (!comp || comp.leagueId == null || comp.season == null) {
+      return res.status(400).json({ error: 'League has no competition configured' });
+    }
+    const leagueApiId = typeof comp.leagueId === 'number' ? comp.leagueId : parseInt(comp.leagueId, 10);
+    const season = typeof comp.season === 'number' ? comp.season : parseInt(comp.season, 10);
+
+    const currentRound = await getCurrentRoundForCompetition(leagueApiId, season);
+    if (!currentRound) {
+      return res.status(404).json({ error: 'No current round fixtures found for this competition' });
+    }
+
+    const fxData = await apiFootball('/fixtures', {
+      league: leagueApiId,
+      season: season,
+      round: currentRound
+    });
+    const fixtures = fxData.response || [];
+    if (fixtures.length === 0) {
+      return res.status(404).json({ error: `No fixtures found for round ${currentRound}` });
+    }
+
+    let insertedOrUpdated = 0;
+    for (const f of fixtures) {
+      const fx = f.fixture || {};
+      const lg = f.league || {};
+      const homeTeamId = f.teams?.home?.id || null;
+      const awayTeamId = f.teams?.away?.id || null;
+      const statusShort = fx.status?.short || null;
+      const elapsed = fx.status?.elapsed || null;
+      const matchDate = fx.date ? new Date(fx.date) : null;
+
+      await pool.query(
+        `INSERT INTO fixtures (id, league_api_id, season, round, stage, home_team_api_id, away_team_api_id, status, elapsed, finalized, match_date)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (id) DO UPDATE SET
+           league_api_id = EXCLUDED.league_api_id,
+           season        = EXCLUDED.season,
+           round         = EXCLUDED.round,
+           stage         = EXCLUDED.stage,
+           home_team_api_id = EXCLUDED.home_team_api_id,
+           away_team_api_id = EXCLUDED.away_team_api_id,
+           status        = EXCLUDED.status,
+           elapsed       = EXCLUDED.elapsed,
+           match_date    = EXCLUDED.match_date`,
+        [
+          fx.id,
+          leagueApiId,
+          season,
+          lg.round || currentRound,
+          null, // stage mapping can be added later via STAGE_MAP
+          homeTeamId,
+          awayTeamId,
+          statusShort,
+          elapsed,
+          false,
+          matchDate
+        ]
+      );
+      insertedOrUpdated++;
+    }
+
+    res.json({ success: true, count: insertedOrUpdated, round: currentRound });
+  } catch (e) {
+    console.error('[seed-fixtures]', e);
+    if (e && e.isApiFootballError) return sendApiFootballError(res, e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// For now, pollLiveFixtures is a stub so /api/admin/poll-now works without error.
+async function pollLiveFixtures() {
+  console.log('[pollLiveFixtures] Stub called — live scoring not implemented yet');
+}
+
+// Admin-only: manually trigger pollLiveFixtures (used by frontend \"Poll Now\" button).
+app.post('/api/admin/poll-now', async (req, res) => {
+  try {
+    // Any valid league admin token may call this
+    const token = req.headers['x-admin-token'];
+    if (!token) return res.status(403).json({ error: 'Missing admin token' });
+    const leagues = await pool.query('SELECT 1 FROM leagues WHERE admin_token = $1 LIMIT 1', [token]);
+    if (leagues.rows.length === 0) return res.status(403).json({ error: 'Unauthorized' });
+
+    await pollLiveFixtures();
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[poll-now]', e);
+    res.status(500).json({ error: e.message });
   }
 });
 
