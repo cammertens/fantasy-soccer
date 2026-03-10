@@ -2843,6 +2843,7 @@ async function refreshLeague() {
     if (res.ok) {
       state.league = await res.json();
       applyDraftPicks();
+      await loadPlayers();
     }
   } catch(e) {}
 }
