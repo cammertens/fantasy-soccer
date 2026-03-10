@@ -2844,7 +2844,9 @@ async function deleteLeague() {
     const data = await res.json();
     if (!res.ok) return showError('delete-league-msg', data.error || 'Delete failed.');
     localStorage.removeItem('fsl_state');
-    localStorage.removeItem('fsl_leagues');
+    const remaining = JSON.parse(localStorage.getItem('fsl_leagues') || '[]')
+      .filter(l => String(l.leagueId) !== String(state.leagueId));
+    localStorage.setItem('fsl_leagues', JSON.stringify(remaining));
     alert('League deleted.');
     window.location.href = window.location.origin;
   } catch(e) {
