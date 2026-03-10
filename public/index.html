@@ -1782,6 +1782,12 @@ function getManagerPlayers(managerId) {
   const all = getAllPlayers().filter(p => p.draftedBy === managerId);
   const offense = all.filter(p => p.pos !== 'TEAM');
   const defense = all.find(p => p.pos === 'TEAM');
+  // Sort offense by draft order: first pick at top, last pick at bottom
+  offense.sort((a, b) => {
+    const oa = a.draftOverall ?? 9999;
+    const ob = b.draftOverall ?? 9999;
+    return oa - ob;
+  });
   return { offense, defense };
 }
 
