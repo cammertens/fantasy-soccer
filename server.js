@@ -82,6 +82,31 @@ async function initDB() {
         finalized BOOLEAN DEFAULT false,
         match_date TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS match_stats (
+        fixture_id BIGINT REFERENCES fixtures(id),
+        player_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        goals INTEGER DEFAULT 0,
+        assists INTEGER DEFAULT 0,
+        pk_goals INTEGER DEFAULT 0,
+        pk_misses INTEGER DEFAULT 0,
+        red_cards INTEGER DEFAULT 0,
+        fantasy_points INTEGER DEFAULT 0,
+        UNIQUE(fixture_id, player_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS team_match_stats (
+        fixture_id BIGINT REFERENCES fixtures(id),
+        team_api_id INTEGER NOT NULL,
+        stage TEXT NOT NULL,
+        goals_scored INTEGER DEFAULT 0,
+        goals_against INTEGER DEFAULT 0,
+        result TEXT,
+        clean_sheet BOOLEAN DEFAULT false,
+        fantasy_points INTEGER DEFAULT 0,
+        UNIQUE(fixture_id, team_api_id)
+      );
     `);
     console.log('Database initialized (live scoring seed ready)');
   } catch(e) {
@@ -349,6 +374,15 @@ const COMPETITION_TEAMS = {
     { id: 327, name: 'Bodo/Glimt', code: 'BOD' }
   ]
   // Add more competitions (e.g. 1 for World Cup) as needed
+};
+
+const STAGE_MAP = {
+  2: {
+    'Round of 16': 'R16',
+    'Quarter-finals': 'QF',
+    'Semi-finals': 'SF',
+    'Final': 'F'
+  }
 };
 
 function mapPosition(pos) {
@@ -1019,128 +1053,286 @@ app.get('/api/football/standings', async (req, res) => {
 });
 
 // =============================================
-// LIVE SCORING: FIXTURE SEEDING (BACKEND HOOKS)
+// LIVE SCORING
 // =============================================
 
-// Helper: determine the \"current\" round string for a league/season by looking at
-// fixtures that are upcoming or in progress. We pick the round with the most such fixtures.
-async function getCurrentRoundForCompetition(leagueApiId, season) {
-  const data = await apiFootball('/fixtures', {
-    league: leagueApiId,
-    season: season
-  });
-  const fixtures = data.response || [];
-  if (fixtures.length === 0) return null;
-
-  // Consider fixtures that are not finished yet as \"active\" for current round
-  const activeStatuses = new Set(['NS', 'TBD', '1H', 'HT', '2H', 'ET', 'P', 'LIVE']);
-  const roundCounts = new Map();
-
-  for (const f of fixtures) {
-    const statusShort = f.fixture?.status?.short;
-    const round = f.league?.round;
-    if (!round || !statusShort) continue;
-    if (!activeStatuses.has(statusShort)) continue;
-    const prev = roundCounts.get(round) || 0;
-    roundCounts.set(round, prev + 1);
-  }
-
-  if (roundCounts.size === 0) return null;
-
-  // Pick the round with the highest count of active fixtures
-  let bestRound = null;
-  let bestCount = -1;
-  for (const [round, count] of roundCounts.entries()) {
-    if (count > bestCount) {
-      bestCount = count;
-      bestRound = round;
-    }
-  }
-  return bestRound;
-}
-
-// Admin-only: seed fixtures for the league's current competition and current round.
-// Safe to press multiple times per round thanks to ON CONFLICT(id) upsert.
+// Admin-only: seed fixtures for the league's competition using STAGE_MAP.
+// Safe to press multiple times thanks to ON CONFLICT(id) upsert.
 app.post('/api/leagues/:id/seed-fixtures', async (req, res) => {
   try {
     const league = await getLeague(req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
-    if (req.headers['x-admin-token'] !== league.adminToken) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
     const comp = league.competition;
-    if (!comp || comp.leagueId == null || comp.season == null) {
-      return res.status(400).json({ error: 'League has no competition configured' });
-    }
-    const leagueApiId = typeof comp.leagueId === 'number' ? comp.leagueId : parseInt(comp.leagueId, 10);
-    const season = typeof comp.season === 'number' ? comp.season : parseInt(comp.season, 10);
+    const leagueApiId = parseInt(comp.leagueId);
+    const season = parseInt(comp.season);
+    const stageMap = STAGE_MAP[leagueApiId];
+    if (!stageMap) return res.status(400).json({ error: 'No stage map for this competition' });
 
-    const currentRound = await getCurrentRoundForCompetition(leagueApiId, season);
-    if (!currentRound) {
-      return res.status(404).json({ error: 'No current round fixtures found for this competition' });
-    }
-
-    const fxData = await apiFootball('/fixtures', {
-      league: leagueApiId,
-      season: season,
-      round: currentRound
-    });
-    const fixtures = fxData.response || [];
-    if (fixtures.length === 0) {
-      return res.status(404).json({ error: `No fixtures found for round ${currentRound}` });
-    }
-
-    let insertedOrUpdated = 0;
-    for (const f of fixtures) {
-      const fx = f.fixture || {};
-      const lg = f.league || {};
-      const homeTeamId = f.teams?.home?.id || null;
-      const awayTeamId = f.teams?.away?.id || null;
-      const statusShort = fx.status?.short || null;
-      const elapsed = fx.status?.elapsed || null;
-      const matchDate = fx.date ? new Date(fx.date) : null;
-
-      await pool.query(
-        `INSERT INTO fixtures (id, league_api_id, season, round, stage, home_team_api_id, away_team_api_id, status, elapsed, finalized, match_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         ON CONFLICT (id) DO UPDATE SET
-           league_api_id = EXCLUDED.league_api_id,
-           season        = EXCLUDED.season,
-           round         = EXCLUDED.round,
-           stage         = EXCLUDED.stage,
-           home_team_api_id = EXCLUDED.home_team_api_id,
-           away_team_api_id = EXCLUDED.away_team_api_id,
-           status        = EXCLUDED.status,
-           elapsed       = EXCLUDED.elapsed,
-           match_date    = EXCLUDED.match_date`,
+    let count = 0;
+    for (const [roundName, stageLabel] of Object.entries(stageMap)) {
+      const data = await apiFootball('/fixtures', { league: leagueApiId, season, round: roundName });
+      const fixtures = data.response || [];
+      for (const f of fixtures) {
+        await pool.query(`
+          INSERT INTO fixtures (id, league_api_id, season, round, stage, home_team_api_id, away_team_api_id, status, elapsed, finalized, match_date)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), $10, $11)
+          ON CONFLICT (id) DO UPDATE SET
+            round = EXCLUDED.round,
+            stage = EXCLUDED.stage,
+            home_team_api_id = EXCLUDED.home_team_api_id,
+            away_team_api_id = EXCLUDED.away_team_api_id,
+            status = EXCLUDED.status,
+            elapsed = EXCLUDED.elapsed,
+            match_date = EXCLUDED.match_date`,
         [
-          fx.id,
+          f.fixture.id,
           leagueApiId,
           season,
-          lg.round || currentRound,
-          null, // stage mapping can be added later via STAGE_MAP
-          homeTeamId,
-          awayTeamId,
-          statusShort,
-          elapsed,
+          f.league.round,
+          stageLabel,
+          f.teams.home.id,
+          f.teams.away.id,
+          f.fixture.status.short,
+          f.fixture.status.elapsed,
           false,
-          matchDate
-        ]
-      );
-      insertedOrUpdated++;
+          new Date(f.fixture.date)
+        ]);
+        count++;
+      }
     }
 
-    res.json({ success: true, count: insertedOrUpdated, round: currentRound });
+    res.json({ success: true, count });
   } catch (e) {
     console.error('[seed-fixtures]', e);
-    if (e && e.isApiFootballError) return sendApiFootballError(res, e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// For now, pollLiveFixtures is a stub so /api/admin/poll-now works without error.
 async function pollLiveFixtures() {
-  console.log('[pollLiveFixtures] Stub called — live scoring not implemented yet');
+  try {
+    // Step 1: fetch live fixtures for UCL
+    const liveData = await apiFootball('/fixtures', { live: 'all', league: 2, season: 2025 });
+    const liveFixtures = liveData.response || [];
+    if (liveFixtures.length === 0) {
+      console.log('[pollLiveFixtures] No live fixtures');
+      return;
+    }
+
+    // Step 2: get seeded fixture IDs from DB
+    const seededRes = await pool.query('SELECT id, stage FROM fixtures WHERE league_api_id = 2 AND season = 2025 AND finalized = false');
+    const seededMap = new Map(seededRes.rows.map(r => [r.id, r.stage]));
+    if (seededMap.size === 0) {
+      console.log('[pollLiveFixtures] No seeded fixtures found');
+      return;
+    }
+
+    const updatedLeagueApiIds = new Set();
+
+    for (const fixture of liveFixtures) {
+      const fixtureId = fixture.fixture.id;
+      const status = fixture.fixture.status.short;
+      const elapsed = fixture.fixture.status.elapsed || 0;
+
+      // Only process fixtures we have seeded
+      if (!seededMap.has(fixtureId)) continue;
+
+      // Elapsed-based filtering
+      if (status === 'NS' || status === 'HT') continue;
+      if (status === '1H' && elapsed < 15) continue;
+      if (status === '2H' && elapsed < 60) continue;
+
+      const isFinal = ['FT', 'AET', 'PEN'].includes(status);
+      const stage = seededMap.get(fixtureId);
+
+      console.log(`[pollLiveFixtures] Processing fixture ${fixtureId} status=${status} elapsed=${elapsed} stage=${stage}`);
+
+      // Step 3: fetch events and statistics
+      const [eventsData, statsData] = await Promise.all([
+        apiFootball('/fixtures/events', { fixture: fixtureId }),
+        apiFootball('/fixtures/statistics', { fixture: fixtureId })
+      ]);
+
+      const events = eventsData.response || [];
+      const teamStats = statsData.response || [];
+
+      // Process player events
+      const playerPoints = new Map();
+      const getPlayer = (id) => {
+        if (!id) return null;
+        const key = String(id);
+        if (!playerPoints.has(key)) playerPoints.set(key, { goals: 0, assists: 0, pk_goals: 0, pk_misses: 0, red_cards: 0, fantasy_points: 0 });
+        return playerPoints.get(key);
+      };
+
+      for (const event of events) {
+        const type = event.type;
+        const detail = event.detail;
+        const playerId = event.player?.id;
+        const assistId = event.assist?.id;
+
+        if (type === 'Goal') {
+          if (detail === 'Normal Goal') {
+            if (playerId) { const p = getPlayer(playerId); p.goals++; p.fantasy_points += 3; }
+            if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
+          } else if (detail === 'Penalty') {
+            if (playerId) { const p = getPlayer(playerId); p.pk_goals++; p.fantasy_points += 2; }
+            if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
+          } else if (detail === 'Missed Penalty') {
+            if (playerId) { const p = getPlayer(playerId); p.pk_misses++; p.fantasy_points -= 1; }
+          }
+          // Own Goal — ignore
+        } else if (type === 'Card') {
+          if (detail === 'Red Card' || detail === 'Yellow Red Card') {
+            if (playerId) { const p = getPlayer(playerId); p.red_cards++; p.fantasy_points -= 2; }
+          }
+        }
+      }
+
+      // Upsert player match stats
+      for (const [playerId, stats] of playerPoints.entries()) {
+        await pool.query(`
+          INSERT INTO match_stats (fixture_id, player_id, stage, goals, assists, pk_goals, pk_misses, red_cards, fantasy_points)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (fixture_id, player_id) DO UPDATE SET
+            goals = EXCLUDED.goals, assists = EXCLUDED.assists,
+            pk_goals = EXCLUDED.pk_goals, pk_misses = EXCLUDED.pk_misses,
+            red_cards = EXCLUDED.red_cards, fantasy_points = EXCLUDED.fantasy_points
+        `, [fixtureId, playerId, stage, stats.goals, stats.assists, stats.pk_goals, stats.pk_misses, stats.red_cards, stats.fantasy_points]);
+      }
+
+      // Process team defense stats
+      const homeTeamId = fixture.teams.home.id;
+      const awayTeamId = fixture.teams.away.id;
+      const homeGoals = fixture.goals.home || 0;
+      const awayGoals = fixture.goals.away || 0;
+
+      const processTeam = async (teamId, goalsScored, goalsAgainst, isShootoutWinner) => {
+        let result, fantasyPoints;
+        const cleanSheet = goalsAgainst === 0;
+
+        if (isFinal && status === 'PEN') {
+          result = isShootoutWinner ? 'W' : 'D';
+        } else {
+          result = goalsScored > goalsAgainst ? 'W' : goalsScored < goalsAgainst ? 'L' : 'D';
+        }
+
+        if (result === 'W' && cleanSheet) fantasyPoints = 3;
+        else if (result === 'W') fantasyPoints = 1;
+        else if (result === 'D' && cleanSheet) fantasyPoints = 2;
+        else if (result === 'L' && cleanSheet) fantasyPoints = 2; // shootout loss with clean sheet
+        else fantasyPoints = 0;
+
+        await pool.query(`
+          INSERT INTO team_match_stats (fixture_id, team_api_id, stage, goals_scored, goals_against, result, clean_sheet, fantasy_points)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          ON CONFLICT (fixture_id, team_api_id) DO UPDATE SET
+            goals_scored = EXCLUDED.goals_scored, goals_against = EXCLUDED.goals_against,
+            result = EXCLUDED.result, clean_sheet = EXCLUDED.clean_sheet,
+            fantasy_points = EXCLUDED.fantasy_points
+        `, [fixtureId, teamId, stage, goalsScored, goalsAgainst, result, cleanSheet, fantasyPoints]);
+      };
+
+      // Determine shootout winner if PEN
+      let homeIsShootoutWinner = false;
+      let awayIsShootoutWinner = false;
+      if (status === 'PEN') {
+        const homePen = fixture.score?.penalty?.home || 0;
+        const awayPen = fixture.score?.penalty?.away || 0;
+        homeIsShootoutWinner = homePen > awayPen;
+        awayIsShootoutWinner = awayPen > homePen;
+      }
+
+      await processTeam(homeTeamId, homeGoals, awayGoals, homeIsShootoutWinner);
+      await processTeam(awayTeamId, awayGoals, homeGoals, awayIsShootoutWinner);
+
+      // Update fixture status
+      await pool.query(
+        'UPDATE fixtures SET status = $1, elapsed = $2, finalized = $3 WHERE id = $4',
+        [status, elapsed, isFinal, fixtureId]
+      );
+
+      if (isFinal) console.log(`[pollLiveFixtures] Fixture ${fixtureId} finalized`);
+      updatedLeagueApiIds.add(2);
+    }
+
+    // Step 4: update player pool scores
+    for (const leagueApiId of updatedLeagueApiIds) {
+      await updatePlayerPoolScores(leagueApiId, 2025);
+    }
+
+  } catch (e) {
+    console.error('[pollLiveFixtures] Error:', e.message);
+  }
+}
+
+async function updatePlayerPoolScores(leagueApiId, season) {
+  try {
+    // Aggregate fantasy points per player per stage
+    const playerScores = await pool.query(`
+      SELECT ms.player_id, ms.stage, SUM(ms.fantasy_points) as total
+      FROM match_stats ms
+      JOIN fixtures f ON f.id = ms.fixture_id
+      WHERE f.league_api_id = $1 AND f.season = $2
+      GROUP BY ms.player_id, ms.stage
+    `, [leagueApiId, season]);
+
+    // Aggregate team defense scores per stage
+    const teamScores = await pool.query(`
+      SELECT tms.team_api_id, tms.stage, SUM(tms.fantasy_points) as total
+      FROM team_match_stats tms
+      JOIN fixtures f ON f.id = tms.fixture_id
+      WHERE f.league_api_id = $1 AND f.season = $2
+      GROUP BY tms.team_api_id, tms.stage
+    `, [leagueApiId, season]);
+
+    // Build lookup maps
+    const playerScoreMap = new Map();
+    for (const row of playerScores.rows) {
+      const key = String(row.player_id);
+      if (!playerScoreMap.has(key)) playerScoreMap.set(key, {});
+      playerScoreMap.get(key)[row.stage] = parseInt(row.total);
+    }
+
+    const teamScoreMap = new Map();
+    for (const row of teamScores.rows) {
+      const key = row.team_api_id;
+      if (!teamScoreMap.has(key)) teamScoreMap.set(key, {});
+      teamScoreMap.get(key)[row.stage] = parseInt(row.total);
+    }
+
+    // Read current pool
+    const poolRes = await pool.query(
+      'SELECT players, teams FROM player_pools WHERE league_api_id = $1 AND season = $2',
+      [leagueApiId, season]
+    );
+    if (poolRes.rows.length === 0) return;
+
+    const players = poolRes.rows[0].players || [];
+    const teams = poolRes.rows[0].teams || [];
+
+    // Write scores back into player objects
+    for (const player of players) {
+      const scores = playerScoreMap.get(String(player.id));
+      if (scores) player.scores = { ...player.scores, ...scores };
+    }
+
+    for (const team of teams) {
+      const scores = teamScoreMap.get(team.apiId);
+      if (scores) team.scores = { ...team.scores, ...scores };
+    }
+
+    await pool.query(
+      `UPDATE player_pools SET players = $1, teams = $2, last_refreshed_at = NOW()
+       WHERE league_api_id = $3 AND season = $4`,
+      [JSON.stringify(players), JSON.stringify(teams), leagueApiId, season]
+    );
+
+    console.log(`[updatePlayerPoolScores] Updated scores for league=${leagueApiId} season=${season}`);
+  } catch (e) {
+    console.error('[updatePlayerPoolScores] Error:', e.message);
+  }
 }
 
 // Admin-only: manually trigger pollLiveFixtures (used by frontend \"Poll Now\" button).
@@ -1165,4 +1357,7 @@ app.post('/api/admin/poll-now', async (req, res) => {
 // =============================================
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  // Start live scoring poller: every 60 seconds, plus one initial run shortly after startup
+  setInterval(pollLiveFixtures, 60 * 1000);
+  setTimeout(pollLiveFixtures, 5000);
 });
