@@ -1122,7 +1122,7 @@ async function pollLiveFixtures() {
 
     // Step 2: get seeded fixture IDs from DB
     const seededRes = await pool.query('SELECT id, stage FROM fixtures WHERE league_api_id = 2 AND season = 2025 AND finalized = false');
-    const seededMap = new Map(seededRes.rows.map(r => [r.id, r.stage]));
+    const seededMap = new Map(seededRes.rows.map(r => [Number(r.id), r.stage]));
     if (seededMap.size === 0) {
       console.log('[pollLiveFixtures] No seeded fixtures found');
       return;
