@@ -1030,6 +1030,29 @@ app.post('/api/leagues/:id/manual-stat', async (req, res) => {
   }
 });
 
+// Delete manual stat by index
+app.delete('/api/leagues/:id/manual-stat', async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (req.headers['x-admin-token'] !== league.adminToken) return res.status(403).json({ error: 'Unauthorized' });
+
+    const index = parseInt(req.body?.index, 10);
+    const stats = league.manualStats || [];
+    if (Number.isNaN(index) || index < 0 || index >= stats.length) {
+      return res.status(400).json({ error: 'Invalid index' });
+    }
+    const newStats = stats.filter((_, i) => i !== index);
+    await pool.query(
+      'UPDATE leagues SET manual_stats = $1 WHERE id = $2',
+      [JSON.stringify(newStats), req.params.id]
+    );
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // =============================================
 // API-FOOTBALL ROUTES
 // =============================================

@@ -853,7 +853,7 @@
 
   .stat-log-item {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     padding: 8px 14px;
     background: rgba(0,0,0,0.2);
     border-radius: 6px;
@@ -1327,6 +1327,14 @@
       <button class="btn btn-outline btn-sm" onclick="seedFixtures()">Seed current fixtures</button>
       <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="pollNow()">Poll Now</button>
       <div class="success-msg" id="fixtures-msg" style="margin-top:10px"></div>
+      <details class="poll-docs" style="margin-top:12px;font-size:12px;color:var(--gray)">
+        <summary style="cursor:pointer;color:var(--green-light)">What the 60s poll updates</summary>
+        <ul style="margin:8px 0 0 18px;padding:0">
+          <li>Goals (+3), Assist (+1), PK Goal (+2), PK Miss (-1), Red Card (-2) from fixture events</li>
+          <li>Team defense: result and clean-sheet points</li>
+          <li><strong>Penalty drawn is not</strong> in the API — add it manually below</li>
+        </ul>
+      </details>
     </div>
 
     <div class="admin-card">
@@ -1681,6 +1689,7 @@ async function enterLeague() {
     const leagueRes = await fetch(`${API}/api/leagues/${state.leagueId}${state.isAdmin ? '/admin' : ''}`, { headers });
     if (!leagueRes.ok) return;
     state.league = await leagueRes.json();
+    state.manualStats = state.league.manualStats || [];
 
     if (state.isAdmin && !state.managerId && state.league.inviteLinks?.length) {
       const slot1 = state.league.inviteLinks.find(l => l.slot === 1) || state.league.inviteLinks[0];
@@ -1784,9 +1793,11 @@ function getAllPlayers() { return [...state.players, ...state.teams]; }
 // =============================================
 // SCORING
 // =============================================
+function getManualStats() { return state.league?.manualStats || state.manualStats || []; }
+
 function getPlayerTotal(player) {
   let total = Object.values(player.scores || {}).reduce((a,b) => a+b, 0);
-  const manual = state.manualStats.filter(s => String(s.playerId) === String(player.id));
+  const manual = getManualStats().filter(s => String(s.playerId) === String(player.id));
   manual.forEach(s => { total += s.value; });
   return total;
 }
@@ -2720,8 +2731,9 @@ function cancelSwap() {
 function populateManualPlayerSelect() {
   const sel = document.getElementById('manual-player');
   if (!sel) return;
-  const all = getAllPlayers().sort((a,b) => a.name.localeCompare(b.name));
-  sel.innerHTML = all.map(p => `<option value="${p.id}">${p.name} (${p.country})</option>`).join('');
+  const draftedIds = new Set((state.league?.draftPicks || []).map(p => String(p.playerId)));
+  const drafted = getAllPlayers().filter(p => draftedIds.has(String(p.id))).sort((a,b) => a.name.localeCompare(b.name));
+  sel.innerHTML = drafted.length ? drafted.map(p => `<option value="${p.id}">${p.name} (${p.country})</option>`).join('') : '<option value="">No drafted players</option>';
 }
 
 async function addManualStat() {
@@ -2739,11 +2751,11 @@ async function addManualStat() {
     });
 
     if (res.ok) {
-      const player = getAllPlayers().find(p => String(p.id) === String(playerId));
-      state.manualStats.push({ playerId, stage, statType, value });
-      if (player) {
-        if (!player.scores[stage]) player.scores[stage] = 0;
-        player.scores[stage] += value;
+      const entry = { playerId, stage, statType, value };
+      state.manualStats.push(entry);
+      if (state.league) {
+        if (!state.league.manualStats) state.league.manualStats = [];
+        state.league.manualStats.push(entry);
       }
       renderManualStatLog();
       renderHome();
@@ -2754,16 +2766,37 @@ async function addManualStat() {
 function renderManualStatLog() {
   const log = document.getElementById('manual-stat-log');
   if (!log) return;
-  if (state.manualStats.length === 0) { log.innerHTML = ''; return; }
-  log.innerHTML = [...state.manualStats].reverse().map(s => {
+  const stats = getManualStats();
+  if (stats.length === 0) { log.innerHTML = ''; return; }
+  log.innerHTML = [...stats].reverse().map((s, i) => {
+    const arrayIndex = stats.length - 1 - i;
     const player = getAllPlayers().find(p => String(p.id) === String(s.playerId));
     return `
-      <div class="stat-log-item">
+      <div class="stat-log-item" data-index="${arrayIndex}">
         <span>${player?.name || s.playerId} · ${s.stage}</span>
         <span style="font-size:11px;color:var(--gray)">${s.statType.replace('_',' ')}</span>
         <span class="stat-pts">${s.value > 0 ? '+' : ''}${s.value}</span>
+        <button type="button" class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px" onclick="deleteManualStat(${arrayIndex})" title="Remove this manual stat">Delete</button>
       </div>`;
   }).join('');
+}
+
+async function deleteManualStat(index) {
+  const stats = getManualStats();
+  if (index < 0 || index >= stats.length) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/manual-stat`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.adminToken },
+      body: JSON.stringify({ index })
+    });
+    if (res.ok) {
+      if (state.league?.manualStats) state.league.manualStats = state.league.manualStats.filter((_, i) => i !== index);
+      state.manualStats = state.manualStats.filter((_, i) => i !== index);
+      renderManualStatLog();
+      renderHome();
+    } else alert('Failed to delete.');
+  } catch(e) { alert('Failed to delete.'); }
 }
 
 // =============================================
@@ -2920,6 +2953,7 @@ async function refreshLeague() {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}${state.isAdmin ? '/admin' : ''}`, { headers });
     if (res.ok) {
       state.league = await res.json();
+      state.manualStats = state.league.manualStats || [];
       applyDraftPicks();
       removeDraftedFromQueue();
       await loadPlayers();
