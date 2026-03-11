@@ -355,6 +355,7 @@ function sanitizeLeague(league) {
 // PLAYER POOL
 // =============================================
 const COMPETITION_TEAMS = {
+  1: [], // FIFA World Cup — add 32 national team { id, name, code } from API when available
   2: [ // UEFA Champions League
     { id: 40, name: 'Liverpool', code: 'LIV' },
     { id: 42, name: 'Arsenal', code: 'ARS' },
@@ -373,10 +374,19 @@ const COMPETITION_TEAMS = {
     { id: 645, name: 'Galatasaray', code: 'GAL' },
     { id: 327, name: 'Bodo/Glimt', code: 'BOD' }
   ]
-  // Add more competitions (e.g. 1 for World Cup) as needed
 };
 
+// Round names (keys) must match the API response exactly. For a new competition (e.g. World Cup),
+// call the API or inspect a fixtures response to see round strings (e.g. "Group A", "Round of 16").
+// Values map to our stage codes: GS1, GS2, GS3, R32, R16, QF, SF, F.
 const STAGE_MAP = {
+  1: { // FIFA World Cup — GS1/GS2/GS3 = 1st/2nd/3rd game for every team (matchday). Keys must match API round names.
+    'Matchday 1': 'GS1', 'Matchday 2': 'GS2', 'Matchday 3': 'GS3',
+    'Round of 16': 'R16',
+    'Quarter-finals': 'QF',
+    'Semi-finals': 'SF',
+    'Final': 'F'
+  },
   2: {
     'Round of 16': 'R16',
     'Quarter-finals': 'QF',
