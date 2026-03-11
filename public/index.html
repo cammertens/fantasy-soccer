@@ -1795,10 +1795,17 @@ function getAllPlayers() { return [...state.players, ...state.teams]; }
 // =============================================
 function getManualStats() { return state.league?.manualStats || state.manualStats || []; }
 
+/** Stage total = API score for that stage + manual stats for that player/stage (league scoring). */
+function getPlayerStageTotal(player, stage) {
+  const api = (player.scores && player.scores[stage]) || 0;
+  const manual = getManualStats()
+    .filter(s => String(s.playerId) === String(player.id) && s.stage === stage)
+    .reduce((sum, s) => sum + (s.value || 0), 0);
+  return api + manual;
+}
+
 function getPlayerTotal(player) {
-  let total = Object.values(player.scores || {}).reduce((a,b) => a+b, 0);
-  const manual = getManualStats().filter(s => String(s.playerId) === String(player.id));
-  manual.forEach(s => { total += s.value; });
+  let total = STAGES.reduce((sum, stage) => sum + getPlayerStageTotal(player, stage), 0);
   return total;
 }
 
@@ -1822,7 +1829,7 @@ function getManagerPlayers(managerId) {
 }
 
 function formatScore(val) {
-  if (val === undefined || val === null) return '';
+  if (val === undefined || val === null) return '0';
   if (val === 0) return '0';
   return val > 0 ? '+'+val : String(val);
 }
@@ -1895,8 +1902,8 @@ function renderHome() {
 
     const playerRows = offense.map(p => {
       const stageCells = mobile ? '' : STAGES.map(s => {
-        const v = p.scores[s];
-        return `<span class="md-cell ${v !== undefined ? scoreClass(v) : ''}">${v !== undefined ? formatScore(v) : ''}</span>`;
+        const v = getPlayerStageTotal(p, s);
+        return `<span class="md-cell ${scoreClass(v)}">${formatScore(v)}</span>`;
       }).join('');
       return `<div class="player-row" style="grid-template-columns:${gridCols}">
         <span class="player-name">${p.name}</span>
@@ -1909,8 +1916,8 @@ function renderHome() {
     let defRow = '';
     if (defense) {
       const stageCells = mobile ? '' : STAGES.map(s => {
-        const v = defense.scores[s];
-        return `<span class="md-cell ${v !== undefined ? scoreClass(v) : ''}">${v !== undefined ? formatScore(v) : ''}</span>`;
+        const v = getPlayerStageTotal(defense, s);
+        return `<span class="md-cell ${scoreClass(v)}">${formatScore(v)}</span>`;
       }).join('');
       defRow = `<div class="player-row defense-row" style="grid-template-columns:${gridCols}">
         <span class="player-name">${defense.name}</span>

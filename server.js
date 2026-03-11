@@ -1244,7 +1244,7 @@ async function pollLiveFixtures() {
           } else if (detail === 'Penalty') {
             if (playerId) { const p = getPlayer(playerId); p.pk_goals++; p.fantasy_points += 2; }
             if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
-          } else if (detail === 'Missed Penalty') {
+          } else if (detail && /missed penalty|penalty missed/i.test(detail)) {
             if (playerId) { const p = getPlayer(playerId); p.pk_misses++; p.fantasy_points -= 1; }
           }
           // Own Goal — ignore
