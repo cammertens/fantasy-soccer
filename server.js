@@ -3,6 +3,7 @@ const cors = require('cors');
 const axios = require('axios');
 require('dotenv').config();
 
+// Redeploy noop marker: no functional changes.
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_FOOTBALL_KEY;
