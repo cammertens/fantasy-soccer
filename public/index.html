@@ -2750,6 +2750,10 @@ async function addManualStat() {
   const pointsMap = { penalty_drawn:1, goal:3, pk_goal:2, assist:1, pk_miss:-1, red_card:-2 };
   const value = pointsMap[statType];
 
+  // Prevent accidental double submissions (and duplicate local pushes).
+  if (state._isAddingManualStat) return;
+  state._isAddingManualStat = true;
+
   try {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}/manual-stat`, {
       method: 'POST',
@@ -2759,7 +2763,6 @@ async function addManualStat() {
 
     if (res.ok) {
       const entry = { playerId, stage, statType, value };
-      state.manualStats.push(entry);
       if (state.league) {
         if (!state.league.manualStats) state.league.manualStats = [];
         state.league.manualStats.push(entry);
@@ -2768,6 +2771,7 @@ async function addManualStat() {
       renderHome();
     }
   } catch(e) { alert('Failed to add stat.'); }
+  finally { state._isAddingManualStat = false; }
 }
 
 function renderManualStatLog() {
@@ -2799,7 +2803,6 @@ async function deleteManualStat(index) {
     });
     if (res.ok) {
       if (state.league?.manualStats) state.league.manualStats = state.league.manualStats.filter((_, i) => i !== index);
-      state.manualStats = state.manualStats.filter((_, i) => i !== index);
       renderManualStatLog();
       renderHome();
     } else alert('Failed to delete.');
