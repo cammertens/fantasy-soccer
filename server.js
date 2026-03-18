@@ -1328,7 +1328,7 @@ async function pollLiveFixtures() {
     }
 
   } catch (e) {
-    console.error('[pollLiveFixtures] Error:', e.message);
+    console.error('[pollLiveFixtures] Error:', e);
   }
 }
 
