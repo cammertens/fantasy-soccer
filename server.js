@@ -1188,149 +1188,178 @@ async function pollLiveFixtures() {
       return;
     }
 
-    // Step 2: get seeded fixture IDs from DB
-    const seededRes = await pool.query('SELECT id, stage FROM fixtures WHERE league_api_id = 2 AND season = 2025 AND finalized = false');
-    const seededMap = new Map(seededRes.rows.map(r => [Number(r.id), r.stage]));
-    if (seededMap.size === 0) {
-      console.log('[pollLiveFixtures] No seeded fixtures found');
-      return;
-    }
+   // Step 2: get seeded fixture IDs from DB
+   const seededRes = await pool.query('SELECT id, stage FROM fixtures WHERE league_api_id = 2 AND season = 2025 AND finalized = false');
+   const seededMap = new Map(seededRes.rows.map(r => [Number(r.id), r.stage]));
 
-    const updatedLeagueApiIds = new Set();
+   // Auto-seed any live fixtures not yet in DB
+   for (const fixture of liveFixtures) {
+     const fixtureId = fixture.fixture.id;
+     if (!seededMap.has(fixtureId)) {
+       const round = fixture.league.round;
+       const stageLabel = STAGE_MAP[2]?.[round];
+       if (!stageLabel) {
+         console.log(`[pollLiveFixtures] Unknown round "${round}", skipping auto-seed`);
+         continue;
+       }
+       await pool.query(`
+         INSERT INTO fixtures (id, league_api_id, season, round, stage, home_team_api_id, away_team_api_id, status, elapsed, finalized, match_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO NOTHING`,
+         [
+           fixtureId, 2, 2025, round, stageLabel,
+           fixture.teams.home.id, fixture.teams.away.id,
+           fixture.fixture.status.short,
+           fixture.fixture.status.elapsed || 0,
+           false,
+           new Date(fixture.fixture.date)
+         ]
+       );
+       seededMap.set(fixtureId, stageLabel);
+       console.log(`[pollLiveFixtures] Auto-seeded fixture ${fixtureId} round="${round}" stage=${stageLabel}`);
+     }
+   }
 
-    for (const fixture of liveFixtures) {
-      const fixtureId = fixture.fixture.id;
-      const status = fixture.fixture.status.short;
-      const elapsed = fixture.fixture.status.elapsed || 0;
+   if (seededMap.size === 0) {
+     console.log('[pollLiveFixtures] No seeded fixtures found');
+     return;
+   }
 
-      // Only process fixtures we have seeded
-      if (!seededMap.has(fixtureId)) continue;
+   const updatedLeagueApiIds = new Set();
 
-      // Elapsed-based filtering
-      if (status === 'NS' || status === 'HT') continue;
+   for (const fixture of liveFixtures) {
+     const fixtureId = fixture.fixture.id;
+     const status = fixture.fixture.status.short;
+     const elapsed = fixture.fixture.status.elapsed || 0;
 
-      const isFinal = ['FT', 'AET', 'PEN'].includes(status);
-      const stage = seededMap.get(fixtureId);
+     // Only process fixtures we have seeded
+     if (!seededMap.has(fixtureId)) continue;
 
-      console.log(`[pollLiveFixtures] Processing fixture ${fixtureId} status=${status} elapsed=${elapsed} stage=${stage}`);
+     // Elapsed-based filtering
+     if (status === 'NS' || status === 'HT') continue;
 
-      // Step 3: fetch events and statistics
-      const [eventsData, statsData] = await Promise.all([
-        apiFootball('/fixtures/events', { fixture: fixtureId }),
-        apiFootball('/fixtures/statistics', { fixture: fixtureId })
-      ]);
+     const isFinal = ['FT', 'AET', 'PEN'].includes(status);
+     const stage = seededMap.get(fixtureId);
 
-      const events = eventsData.response || [];
-      const teamStats = statsData.response || [];
+     console.log(`[pollLiveFixtures] Processing fixture ${fixtureId} status=${status} elapsed=${elapsed} stage=${stage}`);
 
-      // Process player events
-      const playerPoints = new Map();
-      const getPlayer = (id) => {
-        if (!id) return null;
-        const key = String(id);
-        if (!playerPoints.has(key)) playerPoints.set(key, { goals: 0, assists: 0, pk_goals: 0, pk_misses: 0, red_cards: 0, fantasy_points: 0 });
-        return playerPoints.get(key);
-      };
+     // Step 3: fetch events and statistics
+     const [eventsData, statsData] = await Promise.all([
+       apiFootball('/fixtures/events', { fixture: fixtureId }),
+       apiFootball('/fixtures/statistics', { fixture: fixtureId })
+     ]);
 
-      for (const event of events) {
-        const type = event.type;
-        const detail = event.detail;
-        const playerId = event.player?.id;
-        const assistId = event.assist?.id;
+     const events = eventsData.response || [];
+     const teamStats = statsData.response || [];
 
-        if (type === 'Goal') {
-          if (detail === 'Normal Goal') {
-            if (playerId) { const p = getPlayer(playerId); p.goals++; p.fantasy_points += 3; }
-            if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
-          } else if (detail === 'Penalty') {
-            if (playerId) { const p = getPlayer(playerId); p.pk_goals++; p.fantasy_points += 2; }
-            if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
-          } else if (detail && /missed penalty|penalty missed/i.test(detail)) {
-            if (playerId) { const p = getPlayer(playerId); p.pk_misses++; p.fantasy_points -= 1; }
-          }
-          // Own Goal — ignore
-        } else if (type === 'Card') {
-          if (detail === 'Red Card' || detail === 'Yellow Red Card') {
-            if (playerId) { const p = getPlayer(playerId); p.red_cards++; p.fantasy_points -= 2; }
-          }
-        }
-      }
+     // Process player events
+     const playerPoints = new Map();
+     const getPlayer = (id) => {
+       if (!id) return null;
+       const key = String(id);
+       if (!playerPoints.has(key)) playerPoints.set(key, { goals: 0, assists: 0, pk_goals: 0, pk_misses: 0, red_cards: 0, fantasy_points: 0 });
+       return playerPoints.get(key);
+     };
 
-      // Upsert player match stats
-      for (const [playerId, stats] of playerPoints.entries()) {
-        await pool.query(`
-          INSERT INTO match_stats (fixture_id, player_id, stage, goals, assists, pk_goals, pk_misses, red_cards, fantasy_points)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          ON CONFLICT (fixture_id, player_id) DO UPDATE SET
-            goals = EXCLUDED.goals, assists = EXCLUDED.assists,
-            pk_goals = EXCLUDED.pk_goals, pk_misses = EXCLUDED.pk_misses,
-            red_cards = EXCLUDED.red_cards, fantasy_points = EXCLUDED.fantasy_points
-        `, [fixtureId, playerId, stage, stats.goals, stats.assists, stats.pk_goals, stats.pk_misses, stats.red_cards, stats.fantasy_points]);
-      }
+     for (const event of events) {
+       const type = event.type;
+       const detail = event.detail;
+       const playerId = event.player?.id;
+       const assistId = event.assist?.id;
 
-      // Process team defense stats
-      const homeTeamId = fixture.teams.home.id;
-      const awayTeamId = fixture.teams.away.id;
-      const homeGoals = fixture.goals.home || 0;
-      const awayGoals = fixture.goals.away || 0;
+       if (type === 'Goal') {
+         if (detail === 'Normal Goal') {
+           if (playerId) { const p = getPlayer(playerId); p.goals++; p.fantasy_points += 3; }
+           if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
+         } else if (detail === 'Penalty') {
+           if (playerId) { const p = getPlayer(playerId); p.pk_goals++; p.fantasy_points += 2; }
+           if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
+         } else if (detail && /missed penalty|penalty missed/i.test(detail)) {
+           if (playerId) { const p = getPlayer(playerId); p.pk_misses++; p.fantasy_points -= 1; }
+         }
+         // Own Goal — ignore
+       } else if (type === 'Card') {
+         if (detail === 'Red Card' || detail === 'Yellow Red Card') {
+           if (playerId) { const p = getPlayer(playerId); p.red_cards++; p.fantasy_points -= 2; }
+         }
+       }
+     }
 
-      const processTeam = async (teamId, goalsScored, goalsAgainst, isShootoutWinner) => {
-        let result, fantasyPoints;
-        const cleanSheet = goalsAgainst === 0;
+     // Upsert player match stats
+     for (const [playerId, stats] of playerPoints.entries()) {
+       await pool.query(`
+         INSERT INTO match_stats (fixture_id, player_id, stage, goals, assists, pk_goals, pk_misses, red_cards, fantasy_points)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (fixture_id, player_id) DO UPDATE SET
+           goals = EXCLUDED.goals, assists = EXCLUDED.assists,
+           pk_goals = EXCLUDED.pk_goals, pk_misses = EXCLUDED.pk_misses,
+           red_cards = EXCLUDED.red_cards, fantasy_points = EXCLUDED.fantasy_points
+       `, [fixtureId, playerId, stage, stats.goals, stats.assists, stats.pk_goals, stats.pk_misses, stats.red_cards, stats.fantasy_points]);
+     }
 
-        if (isFinal && status === 'PEN') {
-          result = isShootoutWinner ? 'W' : 'D';
-        } else {
-          result = goalsScored > goalsAgainst ? 'W' : goalsScored < goalsAgainst ? 'L' : 'D';
-        }
+     // Process team defense stats
+     const homeTeamId = fixture.teams.home.id;
+     const awayTeamId = fixture.teams.away.id;
+     const homeGoals = fixture.goals.home || 0;
+     const awayGoals = fixture.goals.away || 0;
 
-        if (result === 'W' && cleanSheet) fantasyPoints = 3;
-        else if (result === 'W') fantasyPoints = 1;
-        else if (result === 'D' && cleanSheet) fantasyPoints = 2;
-        else if (result === 'L' && cleanSheet) fantasyPoints = 2; // shootout loss with clean sheet
-        else fantasyPoints = 0;
+     const processTeam = async (teamId, goalsScored, goalsAgainst, isShootoutWinner) => {
+       let result, fantasyPoints;
+       const cleanSheet = goalsAgainst === 0;
 
-        await pool.query(`
-          INSERT INTO team_match_stats (fixture_id, team_api_id, stage, goals_scored, goals_against, result, clean_sheet, fantasy_points)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT (fixture_id, team_api_id) DO UPDATE SET
-            goals_scored = EXCLUDED.goals_scored, goals_against = EXCLUDED.goals_against,
-            result = EXCLUDED.result, clean_sheet = EXCLUDED.clean_sheet,
-            fantasy_points = EXCLUDED.fantasy_points
-        `, [fixtureId, teamId, stage, goalsScored, goalsAgainst, result, cleanSheet, fantasyPoints]);
-      };
+       if (isFinal && status === 'PEN') {
+         result = isShootoutWinner ? 'W' : 'D';
+       } else {
+         result = goalsScored > goalsAgainst ? 'W' : goalsScored < goalsAgainst ? 'L' : 'D';
+       }
 
-      // Determine shootout winner if PEN
-      let homeIsShootoutWinner = false;
-      let awayIsShootoutWinner = false;
-      if (status === 'PEN') {
-        const homePen = fixture.score?.penalty?.home || 0;
-        const awayPen = fixture.score?.penalty?.away || 0;
-        homeIsShootoutWinner = homePen > awayPen;
-        awayIsShootoutWinner = awayPen > homePen;
-      }
+       if (result === 'W' && cleanSheet) fantasyPoints = 3;
+       else if (result === 'W') fantasyPoints = 1;
+       else if (result === 'D' && cleanSheet) fantasyPoints = 2;
+       else if (result === 'L' && cleanSheet) fantasyPoints = 2; // shootout loss with clean sheet
+       else fantasyPoints = 0;
 
-      await processTeam(homeTeamId, homeGoals, awayGoals, homeIsShootoutWinner);
-      await processTeam(awayTeamId, awayGoals, homeGoals, awayIsShootoutWinner);
+       await pool.query(`
+         INSERT INTO team_match_stats (fixture_id, team_api_id, stage, goals_scored, goals_against, result, clean_sheet, fantasy_points)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (fixture_id, team_api_id) DO UPDATE SET
+           goals_scored = EXCLUDED.goals_scored, goals_against = EXCLUDED.goals_against,
+           result = EXCLUDED.result, clean_sheet = EXCLUDED.clean_sheet,
+           fantasy_points = EXCLUDED.fantasy_points
+       `, [fixtureId, teamId, stage, goalsScored, goalsAgainst, result, cleanSheet, fantasyPoints]);
+     };
 
-      // Update fixture status
-      await pool.query(
-        'UPDATE fixtures SET status = $1, elapsed = $2, finalized = $3 WHERE id = $4',
-        [status, elapsed, isFinal, fixtureId]
-      );
+     // Determine shootout winner if PEN
+     let homeIsShootoutWinner = false;
+     let awayIsShootoutWinner = false;
+     if (status === 'PEN') {
+       const homePen = fixture.score?.penalty?.home || 0;
+       const awayPen = fixture.score?.penalty?.away || 0;
+       homeIsShootoutWinner = homePen > awayPen;
+       awayIsShootoutWinner = awayPen > homePen;
+     }
 
-      if (isFinal) console.log(`[pollLiveFixtures] Fixture ${fixtureId} finalized`);
-      updatedLeagueApiIds.add(2);
-    }
+     await processTeam(homeTeamId, homeGoals, awayGoals, homeIsShootoutWinner);
+     await processTeam(awayTeamId, awayGoals, homeGoals, awayIsShootoutWinner);
 
-    // Step 4: update player pool scores
-    for (const leagueApiId of updatedLeagueApiIds) {
-      await updatePlayerPoolScores(leagueApiId, 2025);
-    }
+     // Update fixture status
+     await pool.query(
+       'UPDATE fixtures SET status = $1, elapsed = $2, finalized = $3 WHERE id = $4',
+       [status, elapsed, isFinal, fixtureId]
+     );
 
-  } catch (e) {
-    console.error('[pollLiveFixtures] Error:', e);
-  }
+     if (isFinal) console.log(`[pollLiveFixtures] Fixture ${fixtureId} finalized`);
+     updatedLeagueApiIds.add(2);
+   }
+
+   // Step 4: update player pool scores
+   for (const leagueApiId of updatedLeagueApiIds) {
+     await updatePlayerPoolScores(leagueApiId, 2025);
+   }
+
+ } catch (e) {
+   console.error('[pollLiveFixtures] Error:', e);
+ }
 }
 
 async function updatePlayerPoolScores(leagueApiId, season) {
@@ -1397,7 +1426,7 @@ async function updatePlayerPoolScores(leagueApiId, season) {
 
     console.log(`[updatePlayerPoolScores] Updated scores for league=${leagueApiId} season=${season}`);
   } catch (e) {
-    console.error('[updatePlayerPoolScores] Error:', e.message);
+    console.error('[updatePlayerPoolScores] Error:', e);
   }
 }
 
