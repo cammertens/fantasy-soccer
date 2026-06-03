@@ -1299,6 +1299,23 @@
       <div class="section-title">Invite Links</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:4px">Send these links to your managers. Each link is unique to one slot.</p>
       <div class="invite-links-grid" id="invite-links-grid"></div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--card-border)">
+        <div class="section-title" style="font-size:15px">Add Co-Manager</div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Generate a second invite link for any slot. Co-managers share the same team and draft picks.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Slot</label>
+            <select class="form-select" id="co-manager-slot" style="font-size:13px"></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Co-Manager Name</label>
+            <input class="form-input" id="co-manager-name" placeholder="e.g. Jake" style="font-size:13px" />
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-bottom:0" onclick="addCoManager()">Generate Link</button>
+        </div>
+        <div class="success-msg" id="co-manager-msg" style="margin-top:10px"></div>
+        <div id="co-managers-list" style="margin-top:12px"></div>
+      </div>
     </div>
 
     <div class="admin-card">
@@ -2482,6 +2499,8 @@ function setupAdminPage() {
 
   renderDraftOrderAdmin();
   populateManualPlayerSelect();
+  populateCoManagerSlotSelect();
+  loadCoManagers();
 
   const managers = league.managers || [];
   const swapSel = document.getElementById('swap-manager-select');
@@ -2490,6 +2509,71 @@ function setupAdminPage() {
       managers.map(m => `<option value="${m.managerId}">${m.managerName} — ${m.teamName}</option>`).join('');
     renderSwapRoster();
   }
+}
+
+async function addCoManager() {
+  const slot = document.getElementById('co-manager-slot').value;
+  const name = document.getElementById('co-manager-name').value.trim();
+  if (!slot) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/co-manager`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': state.adminToken },
+      body: JSON.stringify({ slot: parseInt(slot), coManagerName: name || 'Co-Manager' })
+    });
+    const data = await res.json();
+    if (!res.ok) { showMsg('co-manager-msg', data.error || 'Failed.'); return; }
+    document.getElementById('co-manager-name').value = '';
+    showMsg('co-manager-msg', 'Link generated!');
+    await loadCoManagers();
+    copyLink(data.link);
+  } catch(e) { showMsg('co-manager-msg', 'Failed: ' + e.message); }
+}
+
+async function loadCoManagers() {
+  if (!state.adminToken || !state.leagueId) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/co-managers`, {
+      headers: { 'x-admin-token': state.adminToken }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = document.getElementById('co-managers-list');
+    if (!list) return;
+    const coManagers = data.coManagers || [];
+    if (coManagers.length === 0) { list.innerHTML = ''; return; }
+    list.innerHTML = coManagers.map(cm => {
+      const url = `${window.location.origin}?league=${state.leagueId}&token=${cm.token}`;
+      return `
+        <div class="invite-link-row" style="margin-bottom:6px">
+          <div class="invite-slot-label">Slot ${cm.slot} Co</div>
+          <div class="invite-link-text">${cm.co_manager_name} → ${cm.manager_name || 'slot not joined'}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn btn-outline btn-sm" onclick="copyLink('${url}')">Copy</button>
+            <button class="btn btn-sm" style="background:rgba(192,57,43,0.2);color:#f87171;border:1px solid rgba(192,57,43,0.4)" onclick="removeCoManager(${cm.id})">✕</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function removeCoManager(id) {
+  if (!confirm('Remove this co-manager link?')) return;
+  try {
+    const res = await fetch(`${API}/api/leagues/${state.leagueId}/co-manager/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-token': state.adminToken }
+    });
+    if (res.ok) await loadCoManagers();
+  } catch(e) {}
+}
+
+function populateCoManagerSlotSelect() {
+  const sel = document.getElementById('co-manager-slot');
+  if (!sel || !state.league) return;
+  const links = state.league.inviteLinks || [];
+  sel.innerHTML = '<option value="">Select slot...</option>' +
+    links.map(l => `<option value="${l.slot}">Slot ${l.slot}${l.managerName ? ' — ' + l.managerName : ''}</option>`).join('');
 }
 
 function renderDraftOrderAdmin() {
