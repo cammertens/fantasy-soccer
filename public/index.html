@@ -1152,8 +1152,8 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Your Name (Commissioner)</label>
-        <input class="form-input" id="create-admin-name" placeholder="e.g. Cam" />
+        <label class="form-label">Your Name (Commissioner) — optional, leave blank to skip joining</label>
+        <input class="form-input" id="create-admin-name" placeholder="Leave blank to manage without joining" />
       </div>
       <button class="btn btn-gold" onclick="createLeague()">Create League</button>
       <div class="error-msg" id="create-error"></div>
@@ -1433,7 +1433,8 @@ let state = {
   draftOrder: [],
   myQueue: [],
   swapOutPlayerId: null,
-  isAdmin: false
+  isAdmin: false,
+  adminOnly: false
 };
 
 function loadState() {
@@ -1450,7 +1451,8 @@ function saveState() {
     adminToken: state.adminToken,
     managerId: state.managerId,
     managerName: state.managerName,
-    isAdmin: state.isAdmin
+    isAdmin: state.isAdmin,
+    adminOnly: state.adminOnly
   }));
 }
 
@@ -1579,12 +1581,18 @@ async function createLeague() {
 
     state.leagueId = String(data.leagueId);
     state.adminToken = data.adminToken;
-    state.managerName = adminName;
     state.isAdmin = true;
-    state.managerId = data.adminManagerId;
-
+    if (adminName) {
+      state.managerName = adminName;
+      state.managerId = data.adminManagerId;
+      state.adminOnly = false;
+    } else {
+      state.managerId = null;
+      state.managerName = null;
+      state.adminOnly = true;
+    }
     const leagues = JSON.parse(localStorage.getItem('fsl_leagues') || '[]');
-    leagues.push({ leagueId: String(data.leagueId), adminToken: data.adminToken, name, managerId: data.adminManagerId });
+    leagues.push({ leagueId: String(data.leagueId), adminToken: data.adminToken, name, managerId: adminName ? data.adminManagerId : null });
     localStorage.setItem('fsl_leagues', JSON.stringify(leagues));
 
     saveState();
@@ -1633,6 +1641,7 @@ async function joinWithToken() {
     if (slotRes.ok && slotData.managerId) {
       state.managerId = slotData.managerId;
       state.managerName = slotData.managerName || '';
+      state.adminOnly = false;
       saveState();
       enterLeague();
       return;
@@ -1671,6 +1680,7 @@ async function completeJoin() {
 
     state.managerId = data.managerId;
     state.managerName = data.managerName;
+    state.adminOnly = false;
     saveState();
     enterLeague();
   } catch(e) {
@@ -1690,7 +1700,7 @@ async function enterLeague() {
     state.league = await leagueRes.json();
     state.manualStats = state.league.manualStats || [];
 
-    if (state.isAdmin && !state.managerId && state.league.inviteLinks?.length) {
+    if (state.isAdmin && !state.managerId && !state.adminOnly && state.league.inviteLinks?.length) {
       const slot1 = state.league.inviteLinks.find(l => l.slot === 1) || state.league.inviteLinks[0];
       if (slot1?.managerId) {
         state.managerId = slot1.managerId;
@@ -3004,6 +3014,7 @@ function rejoinLeague(index) {
   state.leagueId = l.leagueId;
   state.adminToken = l.adminToken;
   state.managerId = l.managerId;
+  state.adminOnly = !l.managerId;
   state.isAdmin = true;
   saveState();
   enterLeague();
@@ -3032,6 +3043,7 @@ if (urlLeague && urlAdmin) {
       if (ok && data.managerId) {
         state.managerId = data.managerId;
         state.managerName = data.managerName || '';
+        state.adminOnly = false;
         saveState();
         enterLeague();
         return;

@@ -512,11 +512,19 @@ app.post('/api/leagues', async (req, res) => {
     for (let i = 0; i < managerCount; i++) {
       const token = generateToken();
       if (i === 0) {
-        await pool.query(
-          `INSERT INTO league_slots (league_id, slot, token, manager_id, manager_name, team_name) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [leagueId, 1, token, adminManagerId, adminName || 'Commissioner', 'My Team']
-        );
-        inviteLinks.push({ slot: 1, token, managerId: adminManagerId, managerName: adminName || 'Commissioner', teamName: 'My Team' });
+        if (adminName) {
+          await pool.query(
+            `INSERT INTO league_slots (league_id, slot, token, manager_id, manager_name, team_name) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [leagueId, 1, token, adminManagerId, adminName, 'My Team']
+          );
+          inviteLinks.push({ slot: 1, token, managerId: adminManagerId, managerName: adminName, teamName: 'My Team' });
+        } else {
+          await pool.query(
+            `INSERT INTO league_slots (league_id, slot, token) VALUES ($1, $2, $3)`,
+            [leagueId, 1, token]
+          );
+          inviteLinks.push({ slot: 1, token });
+        }
       } else {
         await pool.query(`INSERT INTO league_slots (league_id, slot, token) VALUES ($1, $2, $3)`, [leagueId, i + 1, token]);
         inviteLinks.push({ slot: i + 1, token });
