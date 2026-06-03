@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin — Fantasy Soccer</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #1a7a3c; --green-light: #2da653; --green-dark: #0f4a24;
+    --gold: #f5c842; --gold-dim: #c9a020; --red: #c0392b;
+    --white: #f5f5f0; --gray: #8a8a82; --gray-light: #d4d4cc;
+    --dark: #111410; --card-bg: #1c1f1a; --card-border: #2a2e27;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0e1210; color: var(--white); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+  nav {
+    background: var(--dark); border-bottom: 2px solid var(--red);
+    padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+    height: 56px; position: sticky; top: 0; z-index: 100;
+  }
+  .nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; color: #f87171; }
+  .nav-right { font-size: 12px; color: var(--gray); }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .page { display: none; } .page.active { display: block; }
+  .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 24px; margin-bottom: 16px; }
+  .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; color: var(--gold); margin-bottom: 16px; }
+  .form-group { margin-bottom: 12px; }
+  .form-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gray); margin-bottom: 6px; }
+  .form-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); color: var(--white); padding: 10px 14px; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; }
+  .form-input:focus { border-color: var(--green-light); }
+  .form-select { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); color: var(--white); padding: 10px 14px; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; cursor: pointer; }
+  .btn { padding: 10px 20px; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; }
+  .btn-gold { background: var(--gold); color: var(--dark); }
+  .btn-gold:hover { background: var(--gold-dim); }
+  .btn-green { background: var(--green); color: var(--white); }
+  .btn-green:hover { background: var(--green-light); }
+  .btn-sm { padding: 6px 14px; font-size: 11px; }
+  .btn-danger { background: rgba(192,57,43,0.2); color: #f87171; border: 1px solid rgba(192,57,43,0.4); }
+  .btn-danger:hover { background: rgba(192,57,43,0.35); }
+  .btn-outline { background: transparent; color: var(--gray); border: 1px solid var(--card-border); }
+  .btn-outline:hover { color: var(--white); border-color: var(--gray); }
+  .league-row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+    padding: 12px 16px; background: rgba(0,0,0,0.2); border: 1px solid var(--card-border);
+    border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .league-row:hover { border-color: var(--gold); }
+  .league-name { font-weight: 600; font-size: 14px; }
+  .league-meta { font-size: 11px; color: var(--gray); margin-top: 2px; }
+  .league-badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(26,122,60,0.2); color: #4ade80; font-weight: 600; white-space: nowrap; }
+  .stat-log-item {
+    display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center;
+    padding: 8px 14px; background: rgba(0,0,0,0.2); border-radius: 6px;
+    border: 1px solid var(--card-border); margin-bottom: 6px; font-size: 13px;
+  }
+  .stat-pts { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--gold); }
+  .stat-admin-badge { font-size: 9px; background: rgba(192,57,43,0.2); color: #f87171; padding: 2px 6px; border-radius: 3px; }
+  .manual-stat-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-top: 12px; }
+  .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 10px; display: none; }
+  .msg.success { background: rgba(26,122,60,0.15); border: 1px solid rgba(26,122,60,0.3); color: #4ade80; }
+  .msg.error { background: rgba(192,57,43,0.15); border: 1px solid rgba(192,57,43,0.3); color: #f87171; }
+  .back-btn { color: var(--gray); font-size: 13px; cursor: pointer; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px; }
+  .back-btn:hover { color: var(--white); }
+  .manager-section { margin-bottom: 20px; }
+  .manager-section-title { font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 1px; color: var(--white); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--card-border); }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--card-border); border-top-color: var(--green-light); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">⚠ Super Admin Panel</div>
+  <div class="nav-right" id="nav-status">Not authenticated</div>
+</nav>
+
+<!-- LOGIN PAGE -->
+<div id="page-login" class="page active">
+  <div class="container" style="max-width:420px;padding-top:80px">
+    <div class="card">
+      <div class="card-title">Authenticate</div>
+      <div class="form-group">
+        <label class="form-label">Super Admin Key</label>
+        <input class="form-input" type="password" id="key-input" placeholder="Enter your key" onkeydown="if(event.key==='Enter')authenticate()" />
+      </div>
+      <button class="btn btn-gold" style="width:100%" onclick="authenticate()">Enter</button>
+      <div class="msg" id="login-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LEAGUES LIST PAGE -->
+<div id="page-leagues" class="page">
+  <div class="container">
+    <div class="card">
+      <div class="card-title">All Leagues</div>
+      <div id="leagues-list"><div style="color:var(--gray)"><span class="spinner"></span>Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LEAGUE DETAIL PAGE -->
+<div id="page-detail" class="page">
+  <div class="container">
+    <div class="back-btn" onclick="showLeagues()">← Back to all leagues</div>
+    <div class="card">
+      <div class="card-title" id="detail-league-name">League</div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:16px" id="detail-league-meta"></div>
+
+      <!-- Manual Stat Entry -->
+      <div class="manager-section">
+        <div class="manager-section-title">Add Manual Stat</div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:8px">Add penalty drawn or any scoring correction to any drafted player in this league.</p>
+        <div class="manual-stat-form">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Player</label>
+            <select class="form-select" id="manual-player" style="font-size:12px;padding:8px 10px"></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Stage</label>
+            <select class="form-select" id="manual-stage" style="font-size:12px;padding:8px 10px">
+              <option>GS1</option><option>GS2</option><option>GS3</option>
+              <option>R32</option><option>R16</option><option>QF</option>
+              <option>SF</option><option>3RD</option><option>F</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Stat Type</label>
+            <select class="form-select" id="manual-stat-type" style="font-size:12px;padding:8px 10px">
+              <option value="penalty_drawn">Penalty Drawn (+1)</option>
+              <option value="goal">Goal (+3)</option>
+              <option value="pk_goal">PK Goal (+2)</option>
+              <option value="assist">Assist (+1)</option>
+              <option value="pk_miss">PK Miss (-1)</option>
+              <option value="red_card">Red Card (-2)</option>
+            </select>
+          </div>
+          <button class="btn btn-gold btn-sm" style="margin-bottom:0" onclick="addManualStat()">Add</button>
+        </div>
+        <div class="msg" id="stat-add-msg"></div>
+      </div>
+
+      <!-- Existing Manual Stats -->
+      <div class="manager-section">
+        <div class="manager-section-title">Existing Manual Stats</div>
+        <div id="manual-stat-log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+const POINTS_MAP = { penalty_drawn: 1, goal: 3, pk_goal: 2, assist: 1, pk_miss: -1, red_card: -2 };
+let superAdminKey = '';
+let currentLeague = null;
+let currentPlayers = [];
+let currentTeams = [];
+
+// ── Auth ──────────────────────────────────────────────
+async function authenticate() {
+  const key = document.getElementById('key-input').value.trim();
+  if (!key) return;
+  const res = await fetch(`${API}/api/superadmin/leagues`, { headers: { 'x-superadmin-key': key } });
+  if (!res.ok) { showMsg('login-msg', 'Invalid key.', 'error'); return; }
+  superAdminKey = key;
+  document.getElementById('nav-status').textContent = 'Authenticated ✓';
+  const data = await res.json();
+  renderLeagues(data.leagues);
+  showPage('leagues');
+}
+
+// ── Leagues list ──────────────────────────────────────
+function renderLeagues(leagues) {
+  const el = document.getElementById('leagues-list');
+  if (!leagues || leagues.length === 0) { el.innerHTML = '<div style="color:var(--gray)">No leagues found.</div>'; return; }
+  el.innerHTML = leagues.map(l => {
+    const comp = l.competition || {};
+    const date = new Date(l.created_at).toLocaleDateString();
+    return `
+      <div class="league-row" onclick="openLeague(${l.id})">
+        <div>
+          <div class="league-name">${l.name}</div>
+          <div class="league-meta">${comp.name || 'Unknown competition'} · Created ${date}</div>
+        </div>
+        <div class="league-badge">${l.joined_count}/${l.manager_count} joined</div>
+        <div style="font-size:12px;color:var(--gray)">ID #${l.id}</div>
+      </div>`;
+  }).join('');
+}
+
+async function showLeagues() {
+  const res = await fetch(`${API}/api/superadmin/leagues`, { headers: { 'x-superadmin-key': superAdminKey } });
+  const data = await res.json();
+  renderLeagues(data.leagues);
+  showPage('leagues');
+}
+
+// ── League detail ─────────────────────────────────────
+async function openLeague(leagueId) {
+  document.getElementById('detail-league-name').textContent = 'Loading...';
+  showPage('detail');
+
+  const res = await fetch(`${API}/api/superadmin/leagues/${leagueId}`, {
+    headers: { 'x-superadmin-key': superAdminKey }
+  });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById('detail-league-name').textContent = 'Error loading league'; return; }
+
+  currentLeague = data.league;
+  currentPlayers = data.players || [];
+  currentTeams = data.teams || [];
+
+  document.getElementById('detail-league-name').textContent = currentLeague.name;
+  document.getElementById('detail-league-meta').textContent =
+    `${currentLeague.competition?.name || ''} · ${currentLeague.managerCount} managers · League ID #${currentLeague.id}`;
+
+  populatePlayerSelect();
+  renderStatLog();
+}
+
+function getAllPlayers() { return [...currentPlayers, ...currentTeams]; }
+
+function populatePlayerSelect() {
+  const sel = document.getElementById('manual-player');
+  if (!sel || !currentLeague) return;
+  const draftedIds = new Set((currentLeague.draftPicks || []).map(p => String(p.playerId)));
+  const drafted = getAllPlayers()
+    .filter(p => draftedIds.has(String(p.id)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = drafted.length
+    ? drafted.map(p => `<option value="${p.id}">${p.name} (${p.country})</option>`).join('')
+    : '<option value="">No drafted players</option>';
+}
+
+function renderStatLog() {
+  const log = document.getElementById('manual-stat-log');
+  const stats = currentLeague?.manualStats || [];
+  if (stats.length === 0) { log.innerHTML = '<div style="color:var(--gray);font-size:13px">No manual stats yet.</div>'; return; }
+  log.innerHTML = [...stats].reverse().map((s, i) => {
+    const arrayIndex = stats.length - 1 - i;
+    const player = getAllPlayers().find(p => String(p.id) === String(s.playerId));
+    const superBadge = s.addedBySuperAdmin ? '<span class="stat-admin-badge">SUPER</span>' : '';
+    return `
+      <div class="stat-log-item">
+        <span>${player?.name || s.playerId} · ${s.stage} ${superBadge}</span>
+        <span style="font-size:11px;color:var(--gray)">${(s.statType || '').replace('_', ' ')}</span>
+        <span class="stat-pts">${s.value > 0 ? '+' : ''}${s.value}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteManualStat(${arrayIndex})">Delete</button>
+      </div>`;
+  }).join('');
+}
+
+async function addManualStat() {
+  if (!currentLeague) return;
+  const playerId = document.getElementById('manual-player').value;
+  const stage = document.getElementById('manual-stage').value;
+  const statType = document.getElementById('manual-stat-type').value;
+  const value = POINTS_MAP[statType];
+  if (!playerId) { showMsg('stat-add-msg', 'No player selected.', 'error'); return; }
+
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/manual-stat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-superadmin-key': superAdminKey },
+    body: JSON.stringify({ playerId, stage, statType, value, note: statType })
+  });
+  if (res.ok) {
+    if (!currentLeague.manualStats) currentLeague.manualStats = [];
+    currentLeague.manualStats.push({ playerId, stage, statType, value, addedBySuperAdmin: true });
+    renderStatLog();
+    showMsg('stat-add-msg', 'Stat added successfully.', 'success');
+  } else {
+    const d = await res.json().catch(() => ({}));
+    showMsg('stat-add-msg', d.error || 'Failed to add stat.', 'error');
+  }
+}
+
+async function deleteManualStat(index) {
+  if (!currentLeague || !confirm('Delete this stat?')) return;
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/manual-stat`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'x-superadmin-key': superAdminKey },
+    body: JSON.stringify({ index })
+  });
+  if (res.ok) {
+    currentLeague.manualStats = currentLeague.manualStats.filter((_, i) => i !== index);
+    renderStatLog();
+  } else {
+    alert('Failed to delete stat.');
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `msg ${type}`;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+</script>
+</body>
+</html>
