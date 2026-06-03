@@ -406,7 +406,7 @@
   .rank.silver { color: #aaa; font-weight: 600; }
   .rank.bronze { color: #cd7f32; font-weight: 600; }
 
-  .standings-name { font-weight: 500; }
+  .standings-name { min-width: 0; font-weight: 600; font-size: 13px; }
   .standings-pts { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--gold); }
 
   .undrafted-row { background: rgba(90,90,90,0.1); }
@@ -425,12 +425,13 @@
   .manager-header {
     padding: 10px 14px;
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 
-  .manager-name-cell { font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 1px; }
-  .manager-team-cell { color: var(--gray); font-size: 12px; }
+  .manager-team-cell { font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 1px; }
+  .manager-name-cell { color: var(--gray); font-size: 11px; font-weight: 400; }
 
   .col-header {
     display: grid;
@@ -1883,7 +1884,7 @@ function renderHome() {
     standingsList.innerHTML += `
       <div class="standings-row">
         <div class="rank ${rankClass}">${i+1}</div>
-        <div class="standings-name">${m.managerName}</div>
+        <div class="standings-name">${m.teamName || 'Unnamed Team'}</div>
         <div class="standings-pts">${pts}</div>
       </div>`;
   });
@@ -1968,8 +1969,8 @@ function renderHome() {
     col.innerHTML += `
       <div class="manager-block">
         <div class="manager-header mc-${mi % 8}" style="border-left:3px solid transparent">
-          <span class="manager-name-cell">${m.managerName}</span>
-          <span class="manager-team-cell">— ${m.teamName || ''}</span>
+          <span class="manager-team-cell">${m.teamName || 'Unnamed Team'}</span>
+          ${m.managerName ? `<span class="manager-name-cell">${m.managerName}</span>` : ''}
         </div>
         ${colHeader}
         ${playerRows}
