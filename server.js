@@ -1466,12 +1466,27 @@ app.get('/api/admin/debug-fixtures', async (req, res) => {
   }
 });
 
+// TEMPORARY — delete after running once
+app.get('/api/admin/cleanup-ucl', async (req, res) => {
+  const key = req.query.key;
+  if (!key || key !== process.env.SUPERADMIN_KEY) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    await pool.query(`DELETE FROM team_match_stats WHERE fixture_id IN (SELECT id FROM fixtures WHERE league_api_id = 2)`);
+    await pool.query(`DELETE FROM match_stats WHERE fixture_id IN (SELECT id FROM fixtures WHERE league_api_id = 2)`);
+    await pool.query(`DELETE FROM fixtures WHERE league_api_id = 2`);
+    res.json({ success: true, message: 'UCL data cleared' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // =============================================
 // START
 // =============================================
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  // Start live scoring poller: every 60 seconds, plus one initial run shortly after startup
   setInterval(pollLiveFixtures, 60 * 1000);
   setTimeout(pollLiveFixtures, 5000);
 });
