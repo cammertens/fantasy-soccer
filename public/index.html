@@ -360,6 +360,10 @@
     margin: 0 auto;
   }
 
+  #scoring-rules-block {
+    grid-column: 1 / -1;
+  }
+
   .standings-sidebar {
     position: sticky;
     top: 72px;
@@ -881,6 +885,50 @@
      MOBILE STYLES — max-width: 768px
      Desktop layout completely untouched above
      ============================================ */
+
+  /* ===== SCORING RULES CARD ===== */
+.scoring-rules-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.scoring-rules-header {
+  background: var(--green-dark);
+  padding: 10px 16px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+
+.scoring-rules-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.scoring-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--gray);
+  margin-bottom: 2px;
+}
+
+.scoring-rule {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.scoring-rule .pos { color: #4ade80; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 12px; }
+.scoring-rule .neg { color: #f87171; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 12px; }
+     
   @media (max-width: 768px) {
 
     /* Hide desktop top nav tabs on mobile — logo only */
@@ -944,6 +992,8 @@
     }
 
     .standings-sidebar { position: static; order: -1; }
+
+    #scoring-rules-block { order: -2; }
 
     /* Compact standings table for mobile */
     .standings-row { font-size: 12px; padding: 8px 12px; }
@@ -1205,6 +1255,23 @@
 <!-- ===== HOME PAGE ===== -->
 <div id="page-home" class="page">
   <div class="home-layout">
+    <div id="scoring-rules-block" class="scoring-rules-card">
+      <div class="scoring-rules-header">Scoring</div>
+      <div class="scoring-rules-body">
+        <div class="scoring-section-label">Offense (players)</div>
+        <div class="scoring-rule"><span>Goal</span><span class="pos">+3</span></div>
+        <div class="scoring-rule"><span>Assist</span><span class="pos">+1</span></div>
+        <div class="scoring-rule"><span>PK Goal</span><span class="pos">+2</span></div>
+        <div class="scoring-rule"><span>Penalty Drawn</span><span class="pos">+1</span> <span style="font-size:10px;color:var(--gray)">(manual)</span></div>
+        <div class="scoring-rule"><span>PK Miss</span><span class="neg">−1</span></div>
+        <div class="scoring-rule"><span>Red Card</span><span class="neg">−2</span></div>
+        <div class="scoring-section-label" style="margin-top:8px">Defense (team pick)</div>
+        <div class="scoring-rule"><span>Win + clean sheet</span><span class="pos">+3</span></div>
+        <div class="scoring-rule"><span>Win</span><span class="pos">+1</span></div>
+        <div class="scoring-rule"><span>Draw or loss + clean sheet</span><span class="pos">+2</span></div>
+        <div class="scoring-rule" style="font-size:11px;color:var(--gray);justify-content:flex-start">Clean sheet = 0 goals allowed in regulation + extra time</div>
+      </div>
+    </div>
     <div class="managers-column" id="managers-column">
       <div class="loading-state"><div class="spinner"></div> Loading rosters...</div>
     </div>
@@ -1983,7 +2050,7 @@ function renderHome() {
   });
 
   if (managers.length === 0) {
-    col.innerHTML = '<div class="empty-state">No managers have joined yet. Share your invite links!</div>';
+   col.innerHTML += '<div class="empty-state">No managers have joined yet. Share your invite links!</div>';
   }
 }
 
