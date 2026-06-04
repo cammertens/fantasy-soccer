@@ -364,6 +364,14 @@
     grid-column: 1 / -1;
   }
 
+  .scoring-rules-body {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px 24px;
+    padding: 10px 16px;
+    align-content: start;
+  }
+
   .standings-sidebar {
     position: sticky;
     top: 72px;
@@ -1262,7 +1270,7 @@
         <div class="scoring-rule"><span>Goal</span><span class="pos">+3</span></div>
         <div class="scoring-rule"><span>Assist</span><span class="pos">+1</span></div>
         <div class="scoring-rule"><span>PK Goal</span><span class="pos">+2</span></div>
-        <div class="scoring-rule"><span>Penalty Drawn</span><span class="pos">+1</span> <span style="font-size:10px;color:var(--gray)">(manual)</span></div>
+        <div class="scoring-rule"><span>Penalty Drawn</span><span class="pos">+1</span></div>
         <div class="scoring-rule"><span>PK Miss</span><span class="neg">−1</span></div>
         <div class="scoring-rule"><span>Red Card</span><span class="neg">−2</span></div>
         <div class="scoring-section-label" style="margin-top:8px">Defense (team pick)</div>
