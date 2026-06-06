@@ -29,6 +29,7 @@
   .form-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gray); margin-bottom: 6px; }
   .form-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); color: var(--white); padding: 10px 14px; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; }
   .form-input:focus { border-color: var(--green-light); }
+  .form-input::placeholder { color: var(--gray); }
   .form-select { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); color: var(--white); padding: 10px 14px; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; cursor: pointer; }
   .btn { padding: 10px 20px; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s; }
   .btn-gold { background: var(--gold); color: var(--dark); }
@@ -62,10 +63,56 @@
   .msg.error { background: rgba(192,57,43,0.15); border: 1px solid rgba(192,57,43,0.3); color: #f87171; }
   .back-btn { color: var(--gray); font-size: 13px; cursor: pointer; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px; }
   .back-btn:hover { color: var(--white); }
-  .manager-section { margin-bottom: 20px; }
+  .manager-section { margin-bottom: 24px; }
   .manager-section-title { font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 1px; color: var(--white); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--card-border); }
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--card-border); border-top-color: var(--green-light); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Members list */
+  .member-row {
+    display: grid; grid-template-columns: 40px 1fr 1fr auto; gap: 10px; align-items: center;
+    padding: 9px 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--card-border);
+    border-radius: 6px; margin-bottom: 6px; font-size: 13px;
+  }
+  .member-slot { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gray); }
+  .member-name { font-weight: 600; }
+  .member-team { color: var(--gray); font-size: 12px; }
+  .member-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+  .status-joined { background: rgba(26,122,60,0.2); color: #4ade80; }
+  .status-empty { background: rgba(138,138,130,0.15); color: var(--gray); }
+
+  /* Draft order */
+  .draft-order-item {
+    display: grid; grid-template-columns: 32px 1fr auto; align-items: center;
+    padding: 8px 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--card-border);
+    border-radius: 6px; margin-bottom: 6px; gap: 10px;
+  }
+  .order-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--gold); font-weight: 600; }
+  .order-name { font-size: 13px; font-weight: 500; }
+
+  /* Draft status indicator */
+  .draft-status-badge {
+    display: inline-block; font-size: 12px; padding: 4px 12px; border-radius: 4px;
+    font-weight: 700; letter-spacing: 0.5px; margin-bottom: 12px;
+  }
+  .draft-open { background: rgba(26,122,60,0.2); color: #4ade80; border: 1px solid rgba(26,122,60,0.4); }
+  .draft-closed { background: rgba(138,138,130,0.15); color: var(--gray); border: 1px solid var(--card-border); }
+
+  /* Pick management */
+  .pick-row {
+    display: grid; grid-template-columns: 48px 1fr 1fr auto; gap: 10px; align-items: center;
+    padding: 8px 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--card-border);
+    border-radius: 6px; margin-bottom: 6px; font-size: 13px;
+  }
+  .pick-num { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gray); }
+  .pick-round { font-size: 9px; color: var(--green-light); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Swap panel */
+  .swap-pool-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 6px; margin-top: 8px; }
+  .swap-pool-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; transition: background 0.15s; }
+  .swap-pool-item:hover { background: rgba(26,122,60,0.15); }
+  .swap-pool-item:last-child { border-bottom: none; }
+  .swap-pool-meta { font-size: 11px; color: var(--gray); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -106,9 +153,85 @@
     <div class="back-btn" onclick="showLeagues()">← Back to all leagues</div>
     <div class="card">
       <div class="card-title" id="detail-league-name">League</div>
-      <div style="font-size:13px;color:var(--gray);margin-bottom:16px" id="detail-league-meta"></div>
+      <div style="font-size:13px;color:var(--gray);margin-bottom:20px" id="detail-league-meta"></div>
 
-      <!-- Manual Stat Entry -->
+      <!-- ── MEMBERS ── -->
+      <div class="manager-section">
+        <div class="manager-section-title">League Members</div>
+        <div id="members-list"><div style="color:var(--gray);font-size:13px">Loading...</div></div>
+      </div>
+
+      <!-- ── DRAFT ORDER ── -->
+      <div class="manager-section">
+        <div class="manager-section-title">Draft Order</div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Set the Round 1 snake draft order. Only joined managers are shown.</p>
+        <div id="draft-order-list"></div>
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="randomizeDraftOrder()">Randomize</button>
+          <button class="btn btn-gold btn-sm" onclick="saveDraftOrder()">Save Order</button>
+        </div>
+        <div class="msg" id="draft-order-msg"></div>
+      </div>
+
+      <!-- ── DRAFT CONTROLS ── -->
+      <div class="manager-section">
+        <div class="manager-section-title">Draft Controls</div>
+        <div id="draft-status-badge" class="draft-status-badge draft-closed">Draft: Closed</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="toggleDraft(true)">Open Draft</button>
+          <button class="btn btn-outline btn-sm" onclick="toggleDraft(false)">Close Draft</button>
+          <button class="btn btn-danger btn-sm" onclick="undoLastPick()">Undo Last Pick</button>
+        </div>
+        <div class="msg" id="draft-control-msg"></div>
+      </div>
+
+      <!-- ── MAKE A PICK ── -->
+      <div class="manager-section">
+        <div class="manager-section-title">Make a Pick</div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Draft is open and the pick belongs to whoever is currently on the clock. Use this to pick on their behalf.</p>
+        <div id="on-clock-info" style="margin-bottom:12px;font-size:13px;color:var(--gray)">No draft in progress.</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
+          <div class="form-group" style="margin:0;flex:1;min-width:200px">
+            <label class="form-label">Search Player</label>
+            <input class="form-input" id="pick-search" placeholder="Type to filter..." oninput="filterPickPool()" style="font-size:13px;padding:8px 12px" />
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Position</label>
+            <select class="form-select" id="pick-pos-filter" onchange="filterPickPool()" style="font-size:13px;padding:8px 10px;width:auto">
+              <option value="">All</option>
+              <option value="FW">FW</option>
+              <option value="MF">MF</option>
+              <option value="DF">DF</option>
+              <option value="GK">GK</option>
+              <option value="TEAM">Team</option>
+            </select>
+          </div>
+        </div>
+        <div class="swap-pool-list" id="pick-pool-list"></div>
+        <div class="msg" id="pick-msg"></div>
+      </div>
+
+      <!-- ── SWAP A PICK ── -->
+      <div class="manager-section">
+        <div class="manager-section-title">Swap a Pick</div>
+        <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Replace any drafted player with an available one. Use for wrong picks or injury replacements.</p>
+        <div class="form-group">
+          <label class="form-label">Select Manager</label>
+          <select class="form-select" id="swap-manager-select" onchange="renderSwapRoster()" style="font-size:13px"></select>
+        </div>
+        <div id="swap-roster-display" style="margin-top:12px"></div>
+        <div id="swap-replacement-panel" style="margin-top:12px;display:none">
+          <div class="form-label" style="margin-bottom:8px">Select Replacement Player</div>
+          <input class="form-input" id="swap-search" placeholder="Search available players..." oninput="filterSwapPool()" style="margin-bottom:4px;font-size:13px;padding:8px 12px">
+          <div class="swap-pool-list" id="swap-pool-list"></div>
+          <div style="margin-top:8px">
+            <button class="btn btn-outline btn-sm" onclick="cancelSwap()">Cancel</button>
+          </div>
+        </div>
+        <div class="msg" id="swap-msg"></div>
+      </div>
+
+      <!-- ── MANUAL STAT ENTRY ── -->
       <div class="manager-section">
         <div class="manager-section-title">Add Manual Stat</div>
         <p style="font-size:13px;color:var(--gray);margin-bottom:8px">Add penalty drawn or any scoring correction to any drafted player in this league.</p>
@@ -141,11 +264,12 @@
         <div class="msg" id="stat-add-msg"></div>
       </div>
 
-      <!-- Existing Manual Stats -->
+      <!-- ── EXISTING MANUAL STATS ── -->
       <div class="manager-section">
         <div class="manager-section-title">Existing Manual Stats</div>
         <div id="manual-stat-log"></div>
       </div>
+
     </div>
   </div>
 </div>
@@ -153,10 +277,14 @@
 <script>
 const API = window.location.origin;
 const POINTS_MAP = { penalty_drawn: 1, goal: 3, pk_goal: 2, assist: 1, pk_miss: -1, red_card: -2 };
+const ROSTER_SLOTS = 8;
+
 let superAdminKey = '';
 let currentLeague = null;
 let currentPlayers = [];
 let currentTeams = [];
+let draftOrder = []; // local working copy for the order editor
+let swapOutPlayerId = null;
 
 // ── Auth ──────────────────────────────────────────────
 async function authenticate() {
@@ -211,20 +339,431 @@ async function openLeague(leagueId) {
   currentLeague = data.league;
   currentPlayers = data.players || [];
   currentTeams = data.teams || [];
+  swapOutPlayerId = null;
 
   document.getElementById('detail-league-name').textContent = currentLeague.name;
   document.getElementById('detail-league-meta').textContent =
     `${currentLeague.competition?.name || ''} · ${currentLeague.managerCount} managers · League ID #${currentLeague.id}`;
 
+  renderMembers();
+  renderDraftOrderEditor();
+  renderDraftStatusBadge();
+  renderOnClockInfo();
+  filterPickPool();
+  renderSwapManagerSelect();
   populatePlayerSelect();
   renderStatLog();
 }
 
 function getAllPlayers() { return [...currentPlayers, ...currentTeams]; }
 
+// ── Members ───────────────────────────────────────────
+function renderMembers() {
+  const el = document.getElementById('members-list');
+  const slots = currentLeague.inviteLinks || [];
+  if (slots.length === 0) { el.innerHTML = '<div style="color:var(--gray);font-size:13px">No slots found.</div>'; return; }
+  el.innerHTML = slots.map(s => {
+    const joined = !!s.managerId;
+    return `
+      <div class="member-row">
+        <div class="member-slot">S${s.slot}</div>
+        <div class="member-name">${joined ? s.managerName : '<span style="color:var(--gray);font-style:italic">Empty</span>'}</div>
+        <div class="member-team">${joined ? (s.teamName || '—') : ''}</div>
+        <span class="member-status ${joined ? 'status-joined' : 'status-empty'}">${joined ? '✓ Joined' : 'Waiting'}</span>
+      </div>`;
+  }).join('');
+}
+
+// ── Draft order editor ────────────────────────────────
+function renderDraftOrderEditor() {
+  const managers = currentLeague.managers || [];
+  // If a saved draft order exists use it, otherwise default to managers in slot order
+  const savedOrder = currentLeague.draftOrder || [];
+  if (savedOrder.length > 0) {
+    // Build from saved order, keeping only managers who have joined
+    const managerMap = new Map(managers.map(m => [m.managerId, m]));
+    draftOrder = savedOrder
+      .filter(o => managerMap.has(o.id))
+      .map(o => managerMap.get(o.id));
+    // Add any newly joined managers not yet in saved order
+    savedOrder.forEach(o => managerMap.delete(o.id));
+    managerMap.forEach(m => draftOrder.push(m));
+  } else {
+    draftOrder = [...managers];
+  }
+  renderDraftOrderList();
+}
+
+function renderDraftOrderList() {
+  const list = document.getElementById('draft-order-list');
+  if (draftOrder.length === 0) {
+    list.innerHTML = '<div style="color:var(--gray);font-size:13px">No managers have joined yet.</div>';
+    return;
+  }
+  list.innerHTML = draftOrder.map((m, i) => `
+    <div class="draft-order-item">
+      <div class="order-num">${i + 1}</div>
+      <div class="order-name">${m.managerName} <span style="color:var(--gray);font-size:11px">— ${m.teamName || ''}</span></div>
+      <div style="display:flex;gap:4px">
+        ${i > 0 ? `<button class="btn btn-outline btn-sm" style="padding:4px 8px" onclick="moveDraftOrder(${i}, ${i - 1})">↑</button>` : ''}
+        ${i < draftOrder.length - 1 ? `<button class="btn btn-outline btn-sm" style="padding:4px 8px" onclick="moveDraftOrder(${i}, ${i + 1})">↓</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function moveDraftOrder(from, to) {
+  const arr = [...draftOrder];
+  const item = arr.splice(from, 1)[0];
+  arr.splice(to, 0, item);
+  draftOrder = arr;
+  renderDraftOrderList();
+}
+
+function randomizeDraftOrder() {
+  const arr = [...draftOrder];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  draftOrder = arr;
+  renderDraftOrderList();
+}
+
+async function saveDraftOrder() {
+  if (!currentLeague || draftOrder.length === 0) return;
+  const order = draftOrder.map(m => ({ id: m.managerId, name: m.managerName }));
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/draft-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-superadmin-key': superAdminKey },
+    body: JSON.stringify({ order })
+  });
+  if (res.ok) {
+    currentLeague.draftOrder = order;
+    showMsg('draft-order-msg', 'Draft order saved!', 'success');
+    renderOnClockInfo();
+    filterPickPool();
+  } else {
+    const d = await res.json().catch(() => ({}));
+    showMsg('draft-order-msg', d.error || 'Failed to save.', 'error');
+  }
+}
+
+// ── Draft controls ────────────────────────────────────
+function renderDraftStatusBadge() {
+  const badge = document.getElementById('draft-status-badge');
+  if (currentLeague.draftOpen) {
+    badge.textContent = 'Draft: OPEN';
+    badge.className = 'draft-status-badge draft-open';
+  } else {
+    badge.textContent = currentLeague.draftComplete ? 'Draft: Complete' : 'Draft: Closed';
+    badge.className = 'draft-status-badge draft-closed';
+  }
+}
+
+async function toggleDraft(open) {
+  if (!currentLeague) return;
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/draft-status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-superadmin-key': superAdminKey },
+    body: JSON.stringify({ open })
+  });
+  if (res.ok) {
+    currentLeague.draftOpen = open;
+    if (open) currentLeague.draftComplete = false;
+    renderDraftStatusBadge();
+    renderOnClockInfo();
+    filterPickPool();
+    showMsg('draft-control-msg', open ? 'Draft is now OPEN.' : 'Draft closed.', 'success');
+  } else {
+    const d = await res.json().catch(() => ({}));
+    showMsg('draft-control-msg', d.error || 'Failed.', 'error');
+  }
+}
+
+async function undoLastPick() {
+  if (!currentLeague || !confirm('Undo the last pick?')) return;
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/pick`, {
+    method: 'DELETE',
+    headers: { 'x-superadmin-key': superAdminKey }
+  });
+  const d = await res.json().catch(() => ({}));
+  if (res.ok) {
+    currentLeague.draftPicks.pop();
+    applyDraftPicks();
+    renderOnClockInfo();
+    filterPickPool();
+    renderSwapRoster();
+    showMsg('draft-control-msg', `Undid pick: ${d.undone?.managerName} — ${getPlayerName(d.undone?.playerId)}`, 'success');
+  } else {
+    showMsg('draft-control-msg', d.error || 'Failed to undo.', 'error');
+  }
+}
+
+// ── Snake pick helpers ────────────────────────────────
+function generateSnakePicks(order, rounds) {
+  const picks = [];
+  if (!order || order.length === 0) return picks;
+  for (let r = 0; r < rounds; r++) {
+    const row = r % 2 === 0 ? [...order] : [...order].reverse();
+    row.forEach((m, i) => {
+      picks.push({
+        round: r + 1, pickInRound: i + 1,
+        overall: r * order.length + i + 1,
+        managerId: m.id || m.managerId,
+        managerName: m.name || m.managerName
+      });
+    });
+  }
+  return picks;
+}
+
+function applyDraftPicks() {
+  const all = getAllPlayers();
+  all.forEach(p => { p.draftedBy = null; });
+  (currentLeague.draftPicks || []).forEach(pick => {
+    const player = all.find(p => String(p.id) === String(pick.playerId));
+    if (player) player.draftedBy = pick.managerId;
+  });
+}
+
+function getPlayerName(playerId) {
+  if (!playerId) return '';
+  const p = getAllPlayers().find(p => String(p.id) === String(playerId));
+  return p ? p.name : playerId;
+}
+
+function renderOnClockInfo() {
+  const el = document.getElementById('on-clock-info');
+  if (!currentLeague.draftOpen) {
+    el.textContent = 'Draft is not open.';
+    el.style.color = 'var(--gray)';
+    return;
+  }
+  const order = currentLeague.draftOrder || [];
+  const snakePicks = generateSnakePicks(order, ROSTER_SLOTS);
+  const currentIndex = (currentLeague.draftPicks || []).length;
+  const current = snakePicks[currentIndex];
+  if (!current) {
+    el.textContent = 'Draft is complete.';
+    el.style.color = '#4ade80';
+    return;
+  }
+  el.innerHTML = `On the clock: <strong style="color:var(--gold)">${current.managerName}</strong> — Round ${current.round}, Pick #${current.overall}`;
+  el.style.color = 'var(--white)';
+}
+
+// ── Make a pick ───────────────────────────────────────
+function normalizeSearch(str) {
+  if (!str) return '';
+  return String(str).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/ø/g, 'o').replace(/œ/g, 'oe').replace(/æ/g, 'ae').replace(/å/g, 'a');
+}
+
+function filterPickPool() {
+  const search = normalizeSearch(document.getElementById('pick-search')?.value || '');
+  const posFilter = document.getElementById('pick-pos-filter')?.value || '';
+  const container = document.getElementById('pick-pool-list');
+  if (!container) return;
+
+  if (!currentLeague || !currentLeague.draftOpen) {
+    container.innerHTML = '<div style="padding:12px;color:var(--gray);font-size:13px">Open the draft to make picks.</div>';
+    return;
+  }
+
+  const draftedIds = new Set((currentLeague.draftPicks || []).map(p => String(p.playerId)));
+  const available = getAllPlayers().filter(p => {
+    if (draftedIds.has(String(p.id))) return false;
+    if (posFilter && p.pos !== posFilter) return false;
+    if (search) {
+      const name = normalizeSearch(p.name);
+      const country = normalizeSearch(p.country);
+      if (!name.includes(search) && !country.includes(search)) return false;
+    }
+    return true;
+  });
+
+  if (available.length === 0) {
+    container.innerHTML = '<div style="padding:12px;color:var(--gray);font-size:13px">No players match.</div>';
+    return;
+  }
+
+  container.innerHTML = available.slice(0, 80).map(p => {
+    const safeId = String(p.id).replace(/'/g, "\\'");
+    return `
+      <div class="swap-pool-item" onclick="confirmPick('${safeId}')">
+        <div style="font-weight:500">${p.name}</div>
+        <div class="swap-pool-meta">${p.country} · ${p.pos}</div>
+      </div>`;
+  }).join('');
+}
+
+async function confirmPick(playerId) {
+  if (!currentLeague || !currentLeague.draftOpen) return;
+  const order = currentLeague.draftOrder || [];
+  const snakePicks = generateSnakePicks(order, ROSTER_SLOTS);
+  const currentIndex = (currentLeague.draftPicks || []).length;
+  const current = snakePicks[currentIndex];
+  if (!current) { showMsg('pick-msg', 'Draft is complete.', 'error'); return; }
+
+  const player = getAllPlayers().find(p => String(p.id) === String(playerId));
+  if (!confirm(`Draft ${player?.name || playerId} for ${current.managerName}?`)) return;
+
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/pick`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-superadmin-key': superAdminKey },
+    body: JSON.stringify({ playerId: String(playerId) })
+  });
+  const d = await res.json().catch(() => ({}));
+  if (res.ok) {
+    currentLeague.draftPicks.push(d.pick);
+    applyDraftPicks();
+    if (d.pick && (currentLeague.draftPicks.length >= snakePicks.length)) {
+      currentLeague.draftOpen = false;
+      currentLeague.draftComplete = true;
+      renderDraftStatusBadge();
+    }
+    renderOnClockInfo();
+    filterPickPool();
+    renderSwapRoster();
+    showMsg('pick-msg', `Picked: ${player?.name} for ${current.managerName}`, 'success');
+  } else {
+    showMsg('pick-msg', d.error || 'Pick failed.', 'error');
+  }
+}
+
+// ── Swap a pick ───────────────────────────────────────
+function renderSwapManagerSelect() {
+  const sel = document.getElementById('swap-manager-select');
+  if (!sel) return;
+  const managers = currentLeague.managers || [];
+  sel.innerHTML = '<option value="">Select a manager...</option>' +
+    managers.map(m => `<option value="${m.managerId}">${m.managerName} — ${m.teamName}</option>`).join('');
+  renderSwapRoster();
+}
+
+function renderSwapRoster() {
+  const managerId = document.getElementById('swap-manager-select')?.value;
+  const container = document.getElementById('swap-roster-display');
+  if (!container) return;
+  cancelSwap();
+  if (!managerId) { container.innerHTML = ''; return; }
+
+  applyDraftPicks();
+  const drafted = getAllPlayers().filter(p => p.draftedBy === managerId);
+  const picks = currentLeague.draftPicks || [];
+
+  if (drafted.length === 0) {
+    container.innerHTML = '<div style="color:var(--gray);font-size:13px;padding:8px 0">No players drafted yet.</div>';
+    return;
+  }
+
+  // Sort by pick order
+  drafted.sort((a, b) => {
+    const pa = picks.find(p => String(p.playerId) === String(a.id));
+    const pb = picks.find(p => String(p.playerId) === String(b.id));
+    return (pa?.overall ?? 999) - (pb?.overall ?? 999);
+  });
+
+  container.innerHTML = drafted.map(p => {
+    const pick = picks.find(pk => String(pk.playerId) === String(p.id));
+    const safeId = String(p.id).replace(/'/g, "\\'");
+    return `
+      <div class="pick-row">
+        <div class="pick-num">
+          <div class="pick-round">Rd ${pick?.round || '?'}</div>
+          <div>#${pick?.overall || '?'}</div>
+        </div>
+        <div style="font-weight:500">${p.name}</div>
+        <div style="font-size:12px;color:var(--gray)">${p.country} · ${p.pos}</div>
+        <button class="btn btn-outline btn-sm" onclick="initiateSwap('${safeId}')">Swap Out</button>
+      </div>`;
+  }).join('');
+}
+
+function initiateSwap(playerId) {
+  swapOutPlayerId = playerId;
+  const panel = document.getElementById('swap-replacement-panel');
+  if (panel) panel.style.display = 'block';
+  filterSwapPool();
+}
+
+function filterSwapPool() {
+  const search = normalizeSearch(document.getElementById('swap-search')?.value || '');
+  const draftedIds = new Set((currentLeague.draftPicks || []).map(p => String(p.playerId)));
+  // The player being swapped out is available to be replaced
+  if (swapOutPlayerId) draftedIds.delete(String(swapOutPlayerId));
+
+  const available = getAllPlayers().filter(p => {
+    if (draftedIds.has(String(p.id))) return false;
+    if (search) {
+      const name = normalizeSearch(p.name);
+      const country = normalizeSearch(p.country);
+      if (!name.includes(search) && !country.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const container = document.getElementById('swap-pool-list');
+  if (!container) return;
+  container.innerHTML = available.slice(0, 80).map(p => {
+    const safeId = String(p.id).replace(/'/g, "\\'");
+    return `
+      <div class="swap-pool-item" onclick="confirmSwap('${safeId}')">
+        <div style="font-weight:500">${p.name}</div>
+        <div class="swap-pool-meta">${p.country} · ${p.pos}</div>
+      </div>`;
+  }).join('');
+}
+
+async function confirmSwap(replacementPlayerId) {
+  if (!swapOutPlayerId || !currentLeague) return;
+  const managerId = document.getElementById('swap-manager-select')?.value;
+  if (!managerId) return;
+
+  const outPlayer = getAllPlayers().find(p => String(p.id) === String(swapOutPlayerId));
+  const inPlayer = getAllPlayers().find(p => String(p.id) === String(replacementPlayerId));
+  if (!confirm(`Swap out ${outPlayer?.name} and replace with ${inPlayer?.name}?`)) return;
+
+  const res = await fetch(`${API}/api/superadmin/leagues/${currentLeague.id}/swap-pick`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-superadmin-key': superAdminKey },
+    body: JSON.stringify({
+      outPlayerId: String(swapOutPlayerId),
+      inPlayerId: String(replacementPlayerId),
+      managerId
+    })
+  });
+  const d = await res.json().catch(() => ({}));
+  if (res.ok) {
+    // Update local picks
+    const pick = currentLeague.draftPicks.find(p => String(p.playerId) === String(swapOutPlayerId));
+    if (pick) pick.playerId = String(replacementPlayerId);
+    applyDraftPicks();
+    cancelSwap();
+    renderSwapRoster();
+    populatePlayerSelect();
+    filterPickPool();
+    showMsg('swap-msg', `Swapped ${outPlayer?.name} → ${inPlayer?.name}`, 'success');
+  } else {
+    showMsg('swap-msg', d.error || 'Swap failed.', 'error');
+  }
+}
+
+function cancelSwap() {
+  swapOutPlayerId = null;
+  const panel = document.getElementById('swap-replacement-panel');
+  if (panel) panel.style.display = 'none';
+  const searchEl = document.getElementById('swap-search');
+  if (searchEl) searchEl.value = '';
+  const listEl = document.getElementById('swap-pool-list');
+  if (listEl) listEl.innerHTML = '';
+}
+
+// ── Manual stats ──────────────────────────────────────
 function populatePlayerSelect() {
   const sel = document.getElementById('manual-player');
   if (!sel || !currentLeague) return;
+  applyDraftPicks();
   const draftedIds = new Set((currentLeague.draftPicks || []).map(p => String(p.playerId)));
   const drafted = getAllPlayers()
     .filter(p => draftedIds.has(String(p.id)))
