@@ -2729,7 +2729,7 @@ async function toggleDraft(open) {
 async function refreshPlayerPool() {
   const msgEl = document.getElementById('player-pool-msg');
   if (!msgEl) return;
-  msgEl.textContent = 'Refreshing...';
+  msgEl.textContent = 'Starting refresh...';
   msgEl.style.display = 'block';
   try {
     const res = await fetch(`${API}/api/leagues/${state.leagueId}/players/refresh`, {
@@ -2738,14 +2738,18 @@ async function refreshPlayerPool() {
     });
     const data = await res.json();
     if (res.ok) {
-      state.players = data.players || [];
-      state.teams = data.teams || [];
-      applyDraftPicks();
-      populateCountryFilters();
-      populateManualPlayerSelect();
-      msgEl.textContent = (data.added ?? 0) > 0 ? `Added ${data.added} new player(s).` : 'Pool refreshed (no new players).';
-      renderDraft();
-      renderHome();
+      if (data.refreshing) {
+        msgEl.textContent = data.message;
+      } else {
+        state.players = data.players || [];
+        state.teams = data.teams || [];
+        applyDraftPicks();
+        populateCountryFilters();
+        populateManualPlayerSelect();
+        msgEl.textContent = (data.added ?? 0) > 0 ? `Added ${data.added} new player(s).` : 'Pool refreshed (no new players).';
+        renderDraft();
+        renderHome();
+      }
     } else {
       msgEl.textContent = data.error || 'Refresh failed.';
     }
