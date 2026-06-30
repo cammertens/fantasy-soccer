@@ -9,6 +9,16 @@ const API_KEY = process.env.API_FOOTBALL_KEY;
 const API_BASE = 'https://v3.football.api-sports.io';
 const SUPERADMIN_KEY = process.env.SUPERADMIN_KEY || 'WC2026_SUPERADMIN_KEY';
 
+// #region agent log
+function agentDebugLog(location, message, data, hypothesisId, runId = 'pre-fix') {
+  fetch('http://127.0.0.1:7280/ingest/6eb5d9ea-6ceb-483f-8d1f-b28a29f8474d', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '939488' },
+    body: JSON.stringify({ sessionId: '939488', location, message, data, hypothesisId, runId, timestamp: Date.now() })
+  }).catch(() => {});
+}
+// #endregion
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
@@ -137,7 +147,7 @@ function sleep(ms) {
 }
 
 async function scheduleApiFootballRequest(label, fn) {
-  apiFootballQueue = apiFootballQueue.then(async () => {
+  const result = apiFootballQueue.then(async () => {
     const now = Date.now();
     const waitMs = Math.max(0, apiFootballNextAllowedAt - now);
     if (waitMs > 0) console.log(`[apiFootball] throttle wait ${waitMs}ms (${label})`);
@@ -146,7 +156,9 @@ async function scheduleApiFootballRequest(label, fn) {
     apiFootballNextAllowedAt = start + API_FOOTBALL_MIN_INTERVAL_MS;
     return fn();
   });
-  return apiFootballQueue;
+  // Recover the shared queue on error so subsequent requests aren't blocked
+  apiFootballQueue = result.catch(() => {});
+  return result; // Return this call's own promise, not the shared queue
 }
 
 function stableStringify(obj) {
@@ -813,8 +825,13 @@ app.post('/api/leagues/:id/players/refresh', async (req, res) => {
     }
     const leagueApiId = parseInt(comp.leagueId, 10);
     const season = parseInt(comp.season, 10);
-    const { players, teams, added } = await refreshPlayerPool(leagueApiId, season);
-    res.json({ players, teams, added });
+
+    // Respond immediately — 48 squads at 6.5s each takes ~5 min, which times out Railway
+    res.json({ refreshing: true, message: 'Refresh started. Fetching 48 squads takes ~5 minutes. Come back and reload players shortly.' });
+
+    refreshPlayerPool(leagueApiId, season)
+      .then(({ added }) => console.log(`[players/refresh] Complete. Added ${added} new player(s).`))
+      .catch(e => console.error('[players/refresh] Background error:', e.message));
   } catch(e) {
     console.error('[players/refresh]', e);
     if (e && e.isApiFootballError) return sendApiFootballError(res, e);
@@ -1013,6 +1030,89 @@ app.delete('/api/superadmin/leagues/:id/manual-stat', requireSuperAdmin, async (
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Superadmin: save draft order
+app.post('/api/superadmin/leagues/:id/draft-order', requireSuperAdmin, async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    await pool.query('UPDATE leagues SET draft_order = $1 WHERE id = $2', [JSON.stringify(req.body.order), req.params.id]);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Superadmin: open/close draft
+app.post('/api/superadmin/leagues/:id/draft-status', requireSuperAdmin, async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    await pool.query('UPDATE leagues SET draft_open = $1 WHERE id = $2', [req.body.open, req.params.id]);
+    res.json({ success: true, draftOpen: req.body.open });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Superadmin: make a pick on behalf of a manager
+app.post('/api/superadmin/leagues/:id/pick', requireSuperAdmin, async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (!league.draftOpen) return res.status(400).json({ error: 'Draft is not open' });
+    const { playerId } = req.body;
+    const snakePicks = generateSnakePicks(league.draftOrder, 8);
+    const currentPickIndex = league.draftPicks.length;
+    if (currentPickIndex >= snakePicks.length) return res.status(400).json({ error: 'Draft is complete' });
+    const currentPick = snakePicks[currentPickIndex];
+    const alreadyDrafted = league.draftPicks.find(p => String(p.playerId) === String(playerId));
+    if (alreadyDrafted) return res.status(400).json({ error: 'Player already drafted' });
+    const pick = {
+      overall: currentPickIndex + 1, round: currentPick.round,
+      pickInRound: currentPick.pickInRound, managerId: currentPick.managerId,
+      managerName: currentPick.managerName, playerId: String(playerId),
+      timestamp: new Date().toISOString()
+    };
+    const newPicks = [...league.draftPicks, pick];
+    const draftComplete = newPicks.length >= snakePicks.length;
+    await pool.query(
+      'UPDATE leagues SET draft_picks = $1, draft_open = $2, draft_complete = $3 WHERE id = $4',
+      [JSON.stringify(newPicks), draftComplete ? false : league.draftOpen, draftComplete, req.params.id]
+    );
+    res.json({ success: true, pick });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Superadmin: undo last pick
+app.delete('/api/superadmin/leagues/:id/pick', requireSuperAdmin, async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.draftPicks.length === 0) return res.status(400).json({ error: 'No picks to undo' });
+    const newPicks = league.draftPicks.slice(0, -1);
+    const undone = league.draftPicks[league.draftPicks.length - 1];
+    await pool.query(
+      'UPDATE leagues SET draft_picks = $1, draft_open = true, draft_complete = false WHERE id = $2',
+      [JSON.stringify(newPicks), req.params.id]
+    );
+    res.json({ success: true, undone });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Superadmin: swap a pick
+app.post('/api/superadmin/leagues/:id/swap-pick', requireSuperAdmin, async (req, res) => {
+  try {
+    const league = await getLeague(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const { outPlayerId, inPlayerId, managerId } = req.body;
+    if (!outPlayerId || !inPlayerId || !managerId) return res.status(400).json({ error: 'Missing required fields' });
+    const picks = [...league.draftPicks];
+    const pickIndex = picks.findIndex(p => String(p.playerId) === String(outPlayerId) && p.managerId === managerId);
+    if (pickIndex === -1) return res.status(404).json({ error: 'Pick not found for this manager' });
+    const alreadyDrafted = picks.find(p => String(p.playerId) === String(inPlayerId));
+    if (alreadyDrafted) return res.status(400).json({ error: 'Replacement player already drafted' });
+    picks[pickIndex] = { ...picks[pickIndex], playerId: String(inPlayerId) };
+    await pool.query('UPDATE leagues SET draft_picks = $1 WHERE id = $2', [JSON.stringify(picks), req.params.id]);
+    res.json({ success: true, picks });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // =============================================
 // API-FOOTBALL PASSTHROUGH ROUTES
 // =============================================
@@ -1043,6 +1143,28 @@ app.get('/api/football/teams', async (req, res) => {
 // =============================================
 const WC_LEAGUE_API_ID = 1;
 const WC_SEASON = 2026;
+
+function isPenaltyEvent(event) {
+  const detail = event.detail || '';
+  return detail === 'Penalty' || /missed penalty|penalty missed/i.test(detail);
+}
+
+/** PK shootout events (after 120') are not fantasy-scored — regulation/ET only. */
+function isShootoutPenaltyEvent(event) {
+  if (!isPenaltyEvent(event)) return false;
+
+  const comments = (event.comments || '').toLowerCase();
+  if (comments.includes('penalty shootout') || comments.includes('shootout')) return true;
+
+  const elapsed = event.time?.elapsed ?? 0;
+  const extra = event.time?.extra ?? 0;
+
+  if (elapsed > 120) return true;
+  // Shootout kicks use 120' with no extra; in-play ET PKs use time.extra (e.g. 120+2).
+  if (elapsed === 120 && (extra == null || extra === 0)) return true;
+
+  return false;
+}
 
 app.post('/api/leagues/:id/seed-fixtures', async (req, res) => {
   try {
@@ -1151,10 +1273,36 @@ async function pollLiveFixtures() {
             if (playerId) { const p = getPlayer(playerId); p.goals++; p.fantasy_points += 3; }
             if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
           } else if (detail === 'Penalty') {
-            if (playerId) { const p = getPlayer(playerId); p.pk_goals++; p.fantasy_points += 2; }
-            if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
+            if (isShootoutPenaltyEvent(event)) {
+              // #region agent log
+              agentDebugLog('server.js:pollLiveFixtures', 'skip shootout PK goal', {
+                fixtureId, playerId, time: event.time, comments: event.comments, detail
+              }, 'H1');
+              // #endregion
+            } else {
+              // #region agent log
+              agentDebugLog('server.js:pollLiveFixtures', 'score regulation/ET PK goal', {
+                fixtureId, playerId, time: event.time, comments: event.comments, detail
+              }, 'H5');
+              // #endregion
+              if (playerId) { const p = getPlayer(playerId); p.pk_goals++; p.fantasy_points += 2; }
+              if (assistId) { const p = getPlayer(assistId); p.assists++; p.fantasy_points += 1; }
+            }
           } else if (detail && /missed penalty|penalty missed/i.test(detail)) {
-            if (playerId) { const p = getPlayer(playerId); p.pk_misses++; p.fantasy_points -= 1; }
+            if (isShootoutPenaltyEvent(event)) {
+              // #region agent log
+              agentDebugLog('server.js:pollLiveFixtures', 'skip shootout PK miss', {
+                fixtureId, playerId, time: event.time, comments: event.comments, detail
+              }, 'H2');
+              // #endregion
+            } else {
+              // #region agent log
+              agentDebugLog('server.js:pollLiveFixtures', 'score regulation/ET PK miss', {
+                fixtureId, playerId, time: event.time, comments: event.comments, detail
+              }, 'H5');
+              // #endregion
+              if (playerId) { const p = getPlayer(playerId); p.pk_misses++; p.fantasy_points -= 1; }
+            }
           }
         } else if (type === 'Card' && (detail === 'Red Card' || detail === 'Yellow Red Card')) {
           if (playerId) { const p = getPlayer(playerId); p.red_cards++; p.fantasy_points -= 2; }
@@ -1303,6 +1451,31 @@ app.get('/api/admin/debug-fixtures', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/admin/debug-penalty-events/:fixtureId', async (req, res) => {
+  try {
+    const fixtureId = req.params.fixtureId;
+    const [eventsData, fixtureData] = await Promise.all([
+      apiFootball('/fixtures/events', { fixture: fixtureId }),
+      apiFootball('/fixtures', { id: fixtureId })
+    ]);
+    const events = eventsData.response || [];
+    const status = fixtureData.response?.[0]?.fixture?.status?.short || 'unknown';
+    const penaltyEvents = events.filter(isPenaltyEvent).map(e => ({
+      player: e.player?.name,
+      detail: e.detail,
+      time: e.time,
+      comments: e.comments,
+      isShootout: isShootoutPenaltyEvent(e),
+      wouldScore: isShootoutPenaltyEvent(e) ? 0 : (e.detail === 'Penalty' ? 2 : -1)
+    }));
+    // #region agent log
+    agentDebugLog('server.js:debug-penalty-events', 'penalty classification', {
+      fixtureId, status, count: penaltyEvents.length, penaltyEvents
+    }, 'H3');
+    // #endregion
+    res.json({ fixtureId, status, penaltyEvents });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // =============================================
 // START
